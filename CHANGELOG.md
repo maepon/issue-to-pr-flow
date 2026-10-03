@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Documentation
+
+- `docs/setup.md` §10 records why the phase prompts are not turned into Claude Code skills (to keep the flow deterministic)
+
 ## [0.5.0] - 2026-10-03
 
 ### Security
