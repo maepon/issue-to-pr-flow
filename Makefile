@@ -45,8 +45,8 @@ help:
 	@echo "  (A human checks the instruction document. To change it, comment on the Issue and re-run spec)"
 	@echo
 	@echo "  make impl ISSUE=n     Goes from the instruction document all the way to a PR"
-	@echo "                        The fast model writes the plan and test scenarios, the judge checks them against"
-	@echo "                        the instruction document, and the fast model revises. Once approved it implements;"
+	@echo "                        The fast model writes the plan (test scenarios, or verification steps without tests),"
+	@echo "                        the judge checks it against the instruction document, and the fast model revises. Once approved it implements;"
 	@echo "                        then the judge reviews and the fast model fixes. Once approved it creates the PR,"
 	@echo "                        and finally the strong model posts a code review on the PR"
 	@echo "                        (a human merges; if it does not converge, it stops and hands over to a human)"
