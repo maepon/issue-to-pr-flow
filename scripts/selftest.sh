@@ -274,6 +274,28 @@ printf '%s\n' 'x' '{{/if}}' > "${WORK}/c4.md"
 out=$(render "${RENDER}" c4.md); got=$?
 expect "render-prompt (stops on {{/if}} without a match)" 1 "{{/if}} without a matching {{#if ...}}" "${out}" "${got}"
 
+# {{#unless NAME}} ... {{/unless}}: kept only when the value is empty (the wording for projects without tests)
+printf '%s\n' 'A' '{{#if TEST_CMD}}' 'tests `{{TEST_CMD}}`' '{{/if}}' '{{#unless TEST_CMD}}' 'no tests' '{{/unless}}' 'Z' > "${WORK}/u.md"
+out=$(render env TEST_CMD= "${RENDER}" u.md); got=$?
+if [ "${got}" -ne 0 ] || [ "${out}" != "$(printf '%s\n' A 'no tests' Z)" ]; then
+  ng "render-prompt ({{#unless}} is kept when the value is empty): differs from what was expected (exit code ${got}).
+Actual:
+${out}"
+else
+  pass=$((pass + 1))
+fi
+out=$(render env TEST_CMD='t --all' "${RENDER}" u.md); got=$?
+if [ "${got}" -ne 0 ] || [ "${out}" != "$(printf '%s\n' A 'tests `t --all`' Z)" ]; then
+  ng "render-prompt ({{#unless}} is removed when the value is set): differs from what was expected (exit code ${got}).
+Actual:
+${out}"
+else
+  pass=$((pass + 1))
+fi
+printf '%s\n' '{{#unless TEST_CMD}}' 'x' '{{/if}}' > "${WORK}/u2.md"
+out=$(render "${RENDER}" u2.md); got=$?
+expect "render-prompt (stops when {{/if}} closes {{#unless}})" 1 "{{/if}} closes {{#unless TEST_CMD}}" "${out}" "${got}"
+
 # --- require_instruction ---
 out=$(GH_MODE=issue_tag run_case "${WORK}" 'require_instruction && echo PASSED'); got=$?
 expect "require_instruction (tag present)" 0 "PASSED" "${out}" "${got}"

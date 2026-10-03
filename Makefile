@@ -84,8 +84,8 @@ check-project:
 		echo "Error: $(AI_FLOW_PROJECT_DIR)/config.mk is missing. Add the project settings (copy examples/project/.ai-flow; see docs/setup.md)." >&2; \
 		exit 1; \
 	fi
-	@if [ -z "$(strip $(TEST_CMD))" ]; then \
-		echo "Error: TEST_CMD is not set. Set it in $(AI_FLOW_PROJECT_DIR)/config.mk." >&2; \
+	@if [ -n "$(strip $(TEST_CMD))" ] && [ -z "$(strip $(SCRATCH_TEST_CMD))" ]; then \
+		echo "Error: TEST_CMD is set but SCRATCH_TEST_CMD is not. Set both (or leave both empty for a project without tests) in $(AI_FLOW_PROJECT_DIR)/config.mk." >&2; \
 		exit 1; \
 	fi
 
