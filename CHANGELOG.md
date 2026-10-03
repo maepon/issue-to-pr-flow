@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-03
+
+Fixes found by running the flow on a Python project (flow at `tools/flow/`, no formatter, `OUTPUT_LANG = English`).
+
+### Fixed
+
+- Bash commands with paths outside the flow directory (`git diff -- ../../README.md`) were denied: `claude-run.sh` now passes
+  `--add-dir=<repository root>`. Verified: the same command went from denied to allowed
+- MCP connectors linked to the user's claude.ai account were loaded in headless runs: `claude-run.sh` now passes `--strict-mcp-config`
+- `claude -p` waited 3 seconds for standard input and printed a warning: it now gets `< /dev/null`
+- `Edit` was missing from the commit profile, so touching up the PR body was denied (`Write` was already allowed)
+
+### Changed
+
+- The template and `docs/setup.md` now state that the agents run commands with the flow directory as the current directory,
+  so `TEST_CMD` and friends must work from there. **Check your `.ai-flow/config.mk`** if your commands take paths
+  (`npm test` / `npm run …` are fine as they are)
+
 ## [0.2.0] - 2026-10-03
 
 ### Added
@@ -59,6 +77,7 @@ so its history is included; Issue / PR numbers in those commit messages refer to
 - The scripts' comments and terminal / Slack messages are in Japanese
 - A project without a formatter or a test command is not supported yet: prompts that use an empty `FORMAT_*` / `TEST_CMD` value stop at render time (formatter: fixed in 0.2.0)
 
-[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/maepon/issue-to-pr-flow/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/maepon/issue-to-pr-flow/releases/tag/v0.1.0
