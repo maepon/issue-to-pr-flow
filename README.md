@@ -53,6 +53,10 @@ The early commit history was written in [maepon/jumpmark-dock](https://github.co
 and was carried over with `git subtree split`. Those commit messages are in Japanese, and Issue / PR numbers such as `#38` in them
 refer to that repository.
 
+## Security
+
+Report vulnerabilities privately; see [SECURITY.md](SECURITY.md). Release tags (`v*`) are protected and never moved or deleted.
+
 ## License
 
 [MIT](LICENSE)
