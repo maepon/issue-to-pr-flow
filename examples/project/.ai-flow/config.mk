@@ -20,13 +20,15 @@ SCRATCH_TEST_CMD = node --test
 # SCRATCH_TEST_CMD = go test
 # SCRATCH_TEST_CMD = python -m pytest
 
+# Formatting. If your project has no formatter, leave all four FORMAT_* values empty:
+# the formatting steps are then removed from the prompts and the per-file check is skipped.
+
 # Formatting check for the whole repository. Must give the same result from any directory.
 FORMAT_CHECK_CMD = npm run format:check
 # FORMAT_CHECK_CMD = make fmt-check
 # FORMAT_CHECK_CMD = ruff format --check ..
 
 # Formatting check for one file. The absolute path is appended. Must exit 0 when the file is formatted.
-# Leave empty to skip the per-file formatting check entirely (projects without a formatter).
 FORMAT_FILE_CMD = npx prettier --check
 # FORMAT_FILE_CMD = ruff format --check
 
