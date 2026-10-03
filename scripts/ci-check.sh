@@ -34,7 +34,7 @@ done
 cp -R "${SRC}/examples/project/.ai-flow" "${HOST}/.ai-flow"
 
 git -C "${HOST}" add -A
-git -C "${HOST}" -c user.name=ci -c user.email=ci@example.com commit -q -m "ci-check"
+git -C "${HOST}" -c user.name=ci -c user.email=ci@example.com -c commit.gpgsign=false commit -q -m "ci-check"
 
 make -C "${FLOW}" check || exit 1
 

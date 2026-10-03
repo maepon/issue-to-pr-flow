@@ -24,6 +24,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   No change is needed in `.ai-flow/` for projects that have tests: the prompts they get are byte-for-byte the same as in 0.3.0
 - `scripts/ci-check.sh` also runs `make check` without tests, and without tests and a formatter
 
+### Fixed
+
+- `make check` could fail when the user signs commits (`commit.gpgsign = true`) and the signing agent did not respond, because
+  `selftest.sh` and `ci-check.sh` made signed commits in their throwaway repositories. Those commits are now unsigned
+
 ## [0.3.0] - 2026-10-03
 
 First public release.

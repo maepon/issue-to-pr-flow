@@ -102,6 +102,7 @@ expect() {
 }
 
 # --- Throwaway repositories (run from the flow directory, as in real use) ---
+# Commits here pass -c commit.gpgsign=false: the user's signing setup (e.g. a 1Password SSH agent) must not decide whether the tests pass
 # To catch bugs that depend on the flow directory's name (such as a hard-coded TOOLING_PATHS), run twice with different names and depths.
 #   ai-flow        the common layout
 #   tools/ai.flow  depth 2, with a regex metacharacter (.) in the name. Forgetting to escape it would treat tools/aiXflow/ as tooling too
@@ -121,7 +122,7 @@ repo_suite() {
   echo 'const a = 1;' > "${REPO}/test/x.js"
   case "${F}" in *.*) decoy=$(printf '%s' "${F}" | tr '.' 'X'); mkdir -p "${REPO}/${decoy}/scripts"; echo 'x' > "${REPO}/${decoy}/scripts/a.sh" ;; esac
   git -C "${REPO}" add -A
-  git -C "${REPO}" -c user.name=t -c user.email=t@example.com commit -q -m init
+  git -C "${REPO}" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q -m init
 
   # Change project files and tooling files together
   echo 'y' >> "${REPO}/docs/pp.md"
