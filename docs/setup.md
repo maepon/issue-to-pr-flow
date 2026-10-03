@@ -360,6 +360,8 @@ Each is one short run on the fast model, so the cost is small (they cannot be ch
 | Claude Code itself blocks writes under `.claude/` | Agents cannot widen their own permissions. `prompts/` and `scripts/` are not covered, though |
 | Blocks by deny do **not** appear in `permission_denials`; they come back as tool errors | Some denials do not show up in the list |
 | Even when a tool call is denied, `claude` exits with **0** | `claude-run.sh` reads `permission_denials` and prints them to stderr |
+| With the flow directory as the current directory, Bash commands whose arguments point outside it (`git diff -- ../README.md`) are denied, while `Read` / `Write` / `Edit` reach those files | `claude-run.sh` passes `--add-dir=<repository root>`. Use the `=` form: `--add-dir` takes several values and would swallow the prompt |
+| Headless runs load the MCP connectors linked to the user's claude.ai account | `claude-run.sh` passes `--strict-mcp-config` so none are loaded |
 
 ### Allows that must never be granted
 
@@ -636,6 +638,9 @@ What to check and adapt for your repository.
       `FORMAT_FILE_CMD` must **exit 0 when the file is formatted**. For tools that answer through their output, such as `gofmt -l`,
       write a wrapper that answers with the exit code. **It must not format** (check only). If the check itself fails, the flow stops.
       **If your project has no formatter, leave all four `FORMAT_*` values empty**: the formatting steps disappear from the prompts and the per-file check is skipped
+- [ ] **Commands run from the flow directory** — the agents use the flow directory (e.g. `ai-flow/`) as the current directory,
+      so every command in `config.mk` must work from there. `npm test` / `npm run …` find the root `package.json` by themselves;
+      for other tools, give paths relative to the flow directory (e.g. `python3 -m unittest discover -s ../tests`)
 - [ ] **`TEST_CMD`** — **if your test tool caches results, add the flag that disables it** (Go `-count=1`, Gradle `--rerun-tasks`,
       Turborepo `--force`, Nx `--skip-nx-cache`, Bazel `--nocache_test_results`).
       The judges re-run the tests to verify claims, so a replayed earlier success defeats them.

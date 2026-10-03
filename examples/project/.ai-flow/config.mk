@@ -3,6 +3,9 @@
 # Copy this directory (.ai-flow/) to the root of your repository and edit the values.
 # Personal settings (Slack webhook URL, model IDs) go in <flow dir>/.env instead; this file is shared and committed.
 # Makefile syntax. Do not quote values (the scripts split them into words).
+# The agents run every command with the FLOW DIRECTORY as the current directory (e.g. ai-flow/), not the repository root.
+# Write the commands so they work from there: `npm test` / `npm run …` find the root package.json by themselves,
+# but path arguments must be relative to the flow directory (e.g. `python3 -m unittest discover -s ../tests`).
 # Any value can be overridden for one run on the make command line, e.g. `make impl ISSUE=1 BASE_BRANCH=develop`.
 
 # Branch that PRs are based on. scripts/ and prompts/ only use this value.
@@ -13,7 +16,8 @@ BASE_BRANCH = main
 # because the judge re-runs the tests to verify claims and must not see a replayed success.
 TEST_CMD = npm test
 # TEST_CMD = go test -count=1 ./...
-# TEST_CMD = python -m pytest
+# TEST_CMD = python -m pytest ..
+# TEST_CMD = python3 -m unittest discover -s ../tests
 
 # Runs a single throwaway test file (written under <flow dir>/tmp/). The file name is appended.
 SCRATCH_TEST_CMD = node --test
