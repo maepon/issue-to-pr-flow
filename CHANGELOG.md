@@ -8,9 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/resign-subtree-merge.sh`: signs the commits that `git subtree add` / `git subtree pull --squash` create (they are unsigned,
+  so a host repository that requires signed commits could not merge the subtree PR). It recreates the commits with the same tree,
+  parents, message, and author, checks the tree is unchanged, then moves `HEAD`. Covered by offline tests in `selftest.sh`.
+  `git rebase --rebase-merges --gpg-sign` is not a substitute: it re-runs the merge and, after `subtree add`, put the files at the repository root
+
 ### Documentation
 
 - `SECURITY.md`: how to report vulnerabilities privately, and that release tags are never moved or deleted
+- `docs/setup.md` §3 and `README.md`: how to bring the flow into a repository that requires signed commits
 - `docs/setup.md` §10 records why the phase prompts are not turned into Claude Code skills (to keep the flow deterministic)
 
 ## [0.5.0] - 2026-10-03
