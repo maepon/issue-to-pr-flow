@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Slack notifications: `**bold**` next to full-width characters (Japanese text such as `**太字**（…）`) showed literal asterisks
+  ([#24](https://github.com/maepon/issue-to-pr-flow/issues/24)). Slack only takes `*x*` as bold when the character outside each `*`
+  is a space or ASCII punctuation, so `notify-slack.sh` now puts a zero-width space (U+200B) on both sides. Only a pair on one line whose inner
+  edges are not spaces is converted; other `**` still collapse to `*`. The body other `NOTIFY_CMD`s get on stdin is unchanged.
+  Covered by `selftest.sh` with a `curl` stub
+
 ## [0.7.0] - 2026-10-04
 
 ### Changed
