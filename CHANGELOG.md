@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-04
+
 ### Changed
 
 - **Notifications are pluggable, and Slack is no longer required** ([#18](https://github.com/maepon/issue-to-pr-flow/issues/18)).
@@ -172,7 +174,8 @@ so its history is included; Issue / PR numbers in those commit messages refer to
 - The scripts' comments and terminal / Slack messages are in Japanese (fixed in 0.3.0)
 - A project without a formatter or a test command is not supported yet: prompts that use an empty `FORMAT_*` / `TEST_CMD` value stop at render time (formatter: fixed in 0.2.0; tests: fixed in 0.4.0)
 
-[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.3.0...v0.4.0
