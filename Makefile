@@ -114,9 +114,16 @@ check-env:
 			exit 1; \
 		fi ;; \
 	esac
-	@if [ -n "$(strip $(NOTIFY_CMD))" ] && ! command -v "$(firstword $(NOTIFY_CMD))" >/dev/null 2>&1; then \
-		echo "Error: NOTIFY_CMD ($(firstword $(NOTIFY_CMD))) is not an executable command. Paths are relative to the flow directory; check the path and that it is executable." >&2; \
-		exit 1; \
+	@# A path is checked with -x: dash's command -v (/bin/sh on Debian / Ubuntu) returns a path without checking that it is executable
+	@c="$(firstword $(NOTIFY_CMD))"; \
+	if [ -n "$$c" ]; then \
+		case "$$c" in \
+			*/*) [ -f "$$c" ] && [ -x "$$c" ] ;; \
+			*) command -v "$$c" >/dev/null 2>&1 ;; \
+		esac || { \
+			echo "Error: NOTIFY_CMD ($$c) is not an executable command. Paths are relative to the flow directory; check the path and that it is executable." >&2; \
+			exit 1; \
+		}; \
 	fi
 	@if [ -z "$(strip $(STRONG_MODEL))" ] || [ -z "$(strip $(FAST_MODEL))" ]; then \
 		echo "Error: the strong / fast model IDs are not set. Set CLAUDE_CODE_OPUS_MODEL / CLAUDE_CODE_SONNET_MODEL, or write STRONG_MODEL / FAST_MODEL in .env." >&2; \
