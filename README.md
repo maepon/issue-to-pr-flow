@@ -33,6 +33,8 @@ make help
 ```
 
 Update with `git subtree pull --prefix=ai-flow https://github.com/maepon/issue-to-pr-flow.git <tag> --squash`.
+If your default branch requires signed commits, run `ai-flow/scripts/resign-subtree-merge.sh` right after `subtree add` / `subtree pull`
+(the commits `git subtree` creates are unsigned; see [docs/setup.md](docs/setup.md) §3).
 See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 Requirements: `claude`, `gh` (authenticated), `jq`, `curl`, `make`, `bash` (3.2 or later), a GitHub repository that uses Issues, and a Slack Incoming Webhook.
