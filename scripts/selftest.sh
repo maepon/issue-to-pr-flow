@@ -12,6 +12,7 @@
 #   - The notification contract (what NOTIFY_CMD receives, and that a failing one does not stop the flow), and that
 #     claude-run.sh keeps the notification secrets (NOTIFY_SECRET_VARS) out of the agent's environment
 #   - notify-slack.sh's conversion of **bold**, which did not show as bold in Japanese text
+#   - notify-google-chat.sh's payload: Unicode emoji, the same **bold** conversion, and cutting a body that is too large
 #
 # Sourcing run-phase.sh would run its body, so only the functions under test and the TOOLING_PATHS definition are extracted
 # with sed and sourced. If the way functions are written changes (name() { ... } with the } at the start of a line) and extraction
@@ -93,7 +94,7 @@ EOF
 cat > "${BIN}/claude" <<'EOF'
 #!/bin/sh
 seen=""
-for v in SLACK_WEBHOOK_URL DISCORD_WEBHOOK_URL OTHER_SECRET KEEP_ME; do
+for v in SLACK_WEBHOOK_URL GOOGLE_CHAT_WEBHOOK_URL DISCORD_WEBHOOK_URL OTHER_SECRET KEEP_ME; do
   eval "x=\${$v+set}"
   [ -n "$x" ] && seen="$seen $v"
 done
@@ -410,6 +411,38 @@ else
   pass=$((pass + 1))
 fi
 
+# --- notify-google-chat.sh (the same curl stub) ---
+out=$(printf '%s\n' '**PR #1 の確認**（x）、**AC-1** ok' \
+  | PATH="${BIN}:${PATH}" CURL_OUT="${CURL_OUT}" GOOGLE_CHAT_WEBHOOK_URL=http://example.test \
+    AI_FLOW_NOTIFY_KIND=aborted AI_FLOW_NOTIFY_TITLE=t AI_FLOW_NOTIFY_ISSUE_URL=u ./scripts/notify-google-chat.sh 2>&1); got=$?
+expected=$(printf '%s\n' "❌ *t*" "*Issue:* u" "" "${Z}*PR #1 の確認*${Z}（x）、${Z}*AC-1*${Z} ok")
+actual=$(jq -r .text "${CURL_OUT}" 2>/dev/null)
+if [ "${got}" -ne 0 ] || [ "${actual}" != "${expected}" ]; then
+  ng "notify-google-chat.sh (Unicode emoji, **bold** becomes *bold*): differs from what was expected (exit code ${got}).
+Expected:
+${expected}
+Actual:
+${actual}
+${out}"
+else
+  pass=$((pass + 1))
+fi
+# A body that is too large is cut so that the whole text stays within 8000 characters and ends with the note
+out=$(head -c 30000 /dev/zero | tr '\0' x \
+  | PATH="${BIN}:${PATH}" CURL_OUT="${CURL_OUT}" GOOGLE_CHAT_WEBHOOK_URL=http://example.test \
+    AI_FLOW_NOTIFY_KIND=done AI_FLOW_NOTIFY_TITLE=t AI_FLOW_NOTIFY_ISSUE_URL=u ./scripts/notify-google-chat.sh 2>&1); got=$?
+len=$(jq -r '.text | length' "${CURL_OUT}" 2>/dev/null)
+tail_ok=$(jq -r '.text | endswith("read the rest on the Issue)")' "${CURL_OUT}" 2>/dev/null)
+if [ "${got}" -ne 0 ] || [ "${len}" != "8000" ] || [ "${tail_ok}" != "true" ]; then
+  ng "notify-google-chat.sh (a large body is cut to 8000 characters with the note at the end): exit code ${got}, length ${len}, ends with the note: ${tail_ok}.
+${out}"
+else
+  pass=$((pass + 1))
+fi
+out=$(printf 'b\n' | env -u GOOGLE_CHAT_WEBHOOK_URL PATH="${BIN}:${PATH}" \
+  AI_FLOW_NOTIFY_KIND=done AI_FLOW_NOTIFY_TITLE=t AI_FLOW_NOTIFY_ISSUE_URL=u ./scripts/notify-google-chat.sh 2>&1); got=$?
+expect "notify-google-chat.sh (stops without GOOGLE_CHAT_WEBHOOK_URL)" 1 "GOOGLE_CHAT_WEBHOOK_URL environment variable is not set" "${out}" "${got}"
+
 # --- claude-run.sh keeps the notification secrets out of the agent's environment ---
 # Run it for real with the claude stub, in a throwaway host repository with the flow at ai-flow/ (flow-paths.sh needs that layout)
 AE="${WORK}/agentenv"
@@ -426,8 +459,8 @@ agent_env() {
 }
 out=$(agent_env SLACK_WEBHOOK_URL=s DISCORD_WEBHOOK_URL=d OTHER_SECRET=o KEEP_ME=k NOTIFY_SECRET_VARS='DISCORD_WEBHOOK_URL OTHER_SECRET'); got=$?
 expect "claude-run.sh (NOTIFY_SECRET_VARS and SLACK_WEBHOOK_URL are removed, the rest is kept)" 0 "SEEN: KEEP_ME" "${out}" "${got}"
-out=$(agent_env SLACK_WEBHOOK_URL=s KEEP_ME=k NOTIFY_SECRET_VARS=); got=$?
-expect "claude-run.sh (SLACK_WEBHOOK_URL is removed even with NOTIFY_SECRET_VARS empty)" 0 "SEEN: KEEP_ME" "${out}" "${got}"
+out=$(agent_env SLACK_WEBHOOK_URL=s GOOGLE_CHAT_WEBHOOK_URL=g KEEP_ME=k NOTIFY_SECRET_VARS=); got=$?
+expect "claude-run.sh (SLACK_WEBHOOK_URL and GOOGLE_CHAT_WEBHOOK_URL are removed even with NOTIFY_SECRET_VARS empty)" 0 "SEEN: KEEP_ME" "${out}" "${got}"
 
 # --- resign-subtree-merge.sh (sign what git subtree --squash creates, without changing content) ---
 # Offline: the upstream is a local throwaway repository and signing uses a throwaway SSH key, so neither the network
@@ -483,6 +516,6 @@ else
 fi
 
 if [ "${status}" -eq 0 ]; then
-  echo "selftest: all ${pass} regression tests for run-phase.sh / render-prompt.sh / claude-run.sh / notify-slack.sh / resign-subtree-merge.sh passed."
+  echo "selftest: all ${pass} regression tests for run-phase.sh / render-prompt.sh / claude-run.sh / notify-slack.sh / notify-google-chat.sh / resign-subtree-merge.sh passed."
 fi
 exit "${status}"

@@ -11,7 +11,7 @@ make impl ISSUE=n   →  plan → judge → revise → implement → review → 
 ```
 
 - **Verdicts come only from acceptance criteria.** The judges map findings to `AC-n`; impressions are not grounds to send work back, so rounds converge
-- **Stops instead of guessing.** If judging does not converge in 3 rounds, or a criterion cannot be met as written, it stops and sends a notification (Slack, a command of your own, or none)
+- **Stops instead of guessing.** If judging does not converge in 3 rounds, or a criterion cannot be met as written, it stops and sends a notification (Slack, Google Chat, a command of your own, or none)
 - **The history lives in the Issue.** Every step posts a tagged comment (`<!-- AI-TAG: … -->`), so humans read the whole story in one place
 - **Guard rails around the agents.** Tooling files are checked after every step, `git push` / `gh pr` are run by the shell after checks rather than by the agents, and permission profiles are statically checked for dangerous allows
 - **Prompts in English, output in your language.** Set `OUTPUT_LANG` and Issue comments, commits, and PRs are written in it
@@ -38,7 +38,7 @@ If your default branch requires signed commits, run `ai-flow/scripts/resign-subt
 See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 Requirements: `claude`, `gh` (authenticated), `jq`, `make`, `bash` (3.2 or later), and a GitHub repository that uses Issues.
-Notifications are optional: a Slack Incoming Webhook (with `curl`) or any command you like (`NOTIFY_CMD`).
+Notifications are optional: a Slack or Google Chat Incoming Webhook (with `curl`) or any command you like (`NOTIFY_CMD`).
 
 ## Documentation
 
