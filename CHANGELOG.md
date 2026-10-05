@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-05
+
 ### Added
 
 - **Google Chat notifications** ([#17](https://github.com/maepon/issue-to-pr-flow/issues/17)): `scripts/notify-google-chat.sh`, posting to the
@@ -197,7 +199,8 @@ so its history is included; Issue / PR numbers in those commit messages refer to
 - The scripts' comments and terminal / Slack messages are in Japanese (fixed in 0.3.0)
 - A project without a formatter or a test command is not supported yet: prompts that use an empty `FORMAT_*` / `TEST_CMD` value stop at render time (formatter: fixed in 0.2.0; tests: fixed in 0.4.0)
 
-[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/maepon/issue-to-pr-flow/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.5.0...v0.6.0
