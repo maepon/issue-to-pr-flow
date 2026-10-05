@@ -150,8 +150,8 @@ osascript -e 'on run argv' -e 'display notification (item 2 of argv) with title 
   "issue-to-pr-flow" "${AI_FLOW_NOTIFY_KIND}: ${AI_FLOW_NOTIFY_TITLE}"
 ```
 
-Google Chat (an Incoming Webhook of a space; [#17](https://github.com/maepon/issue-to-pr-flow/issues/17)). Emoji are sent as Unicode, since
-shortcodes such as `:x:` are not turned into emoji there. A message that is too large is refused, so a body over 8000 characters is cut and
+Google Chat (an Incoming Webhook of a space; [#17](https://github.com/maepon/issue-to-pr-flow/issues/17)). Emoji are sent as Unicode rather than as
+Slack's shortcodes such as `:x:`. A message that is too large is refused, so a body over 8000 characters is cut and
 ends with a note pointing to the Issue:
 
 ```make

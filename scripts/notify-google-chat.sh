@@ -5,7 +5,7 @@
 # It follows the notification contract every NOTIFY_CMD gets (docs/setup.md): the body on stdin,
 # the rest in AI_FLOW_NOTIFY_* environment variables, success reported by the exit code.
 # It is notify-slack.sh with what Google Chat needs changed (#17, checked against a real space):
-#   - Emoji shortcodes (:x:) are not turned into emoji, so Unicode emoji are sent instead
+#   - Unicode emoji are sent rather than Slack's shortcodes (:x:); whether Google Chat turns shortcodes into emoji was not checked
 #   - A message that is too large is refused (HTTP 400), so the body is cut and the reader is sent to the Issue
 #   - Content-Type carries charset=UTF-8, as in Google Chat's own examples
 # The payload is built with jq so that quotes, newlines, and backslashes in the body
