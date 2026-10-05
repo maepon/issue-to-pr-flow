@@ -49,7 +49,7 @@ Three design principles:
 | `claude` | Claude Code CLI, used headlessly (`claude -p`) | `claude --version` |
 | `gh` | GitHub CLI: reading/writing Issues, creating PRs | `gh auth status` |
 | `jq` | Reading Claude's JSON output | `jq --version` |
-| `curl` | Slack notifications (only if you use them) | `curl --version` |
+| `curl` | Slack / Google Chat notifications (only if you use them) | `curl --version` |
 | `make` | Entry point | `make --version` |
 | `bash` | Running the scripts | `bash --version` |
 
@@ -86,11 +86,12 @@ implementation is done. **Notifications are optional, and the command that sends
 |---|---|
 | Nothing | No notifications. `make` says `Notifications are off` at the start of each phase, so a missing setting does not go unnoticed |
 | Only `SLACK_WEBHOOK_URL` | Slack, through `scripts/notify-slack.sh` (the behavior before `NOTIFY_CMD` existed) |
-| `NOTIFY_CMD = <command>` | Your command. It wins over `SLACK_WEBHOOK_URL` |
-| `NOTIFY_CMD =` (empty) | No notifications, even if `SLACK_WEBHOOK_URL` is set |
+| Only `GOOGLE_CHAT_WEBHOOK_URL` | Google Chat, through `scripts/notify-google-chat.sh`. With both URLs set, Slack is used (pick one with `NOTIFY_CMD`) |
+| `NOTIFY_CMD = <command>` | Your command. It wins over the webhook URLs |
+| `NOTIFY_CMD =` (empty) | No notifications, even if a webhook URL is set |
 
 `NOTIFY_CMD` usually goes in `.env` (where notifications go is personal). Putting it in `.ai-flow/config.mk` works too, for a team that shares one
-destination; a value in `.env` wins. `check-env` stops if the command is not executable, or if it is `notify-slack.sh` without `SLACK_WEBHOOK_URL`.
+destination; a value in `.env` wins. `check-env` stops if the command is not executable, or if it is `notify-slack.sh` / `notify-google-chat.sh` without its webhook URL.
 
 #### The contract with `NOTIFY_CMD`
 
@@ -113,15 +114,18 @@ Fields may be added to `AI_FLOW_NOTIFY_*` later; ignore the ones you do not use.
 #### Secrets
 
 The agents must not be able to read the notification secret (see "Deny is not isolation" in §6). Name the environment variables that hold secrets in
-`NOTIFY_SECRET_VARS` (default `SLACK_WEBHOOK_URL`). The `Makefile` exports exactly those for `NOTIFY_CMD`, and `claude-run.sh` removes the same
+`NOTIFY_SECRET_VARS` (default `SLACK_WEBHOOK_URL GOOGLE_CHAT_WEBHOOK_URL`). The `Makefile` exports exactly those for `NOTIFY_CMD`, and `claude-run.sh` removes the same
 names from the agents' environment. Variables you define in `.env` are not exported otherwise, so **a name you forget to list means the command
-does not get its secret, never that the agents can read it.** `SLACK_WEBHOOK_URL` is always removed.
+does not get its secret, never that the agents can read it.** `SLACK_WEBHOOK_URL` and `GOOGLE_CHAT_WEBHOOK_URL` are always removed.
+
+If `.env` refers to a shell variable for the URL (`GOOGLE_CHAT_WEBHOOK_URL = $(MY_CHAT_URL)` with `MY_CHAT_URL` set in the shell profile),
+the agents inherit that variable from the shell too, so list it as well: `NOTIFY_SECRET_VARS = GOOGLE_CHAT_WEBHOOK_URL MY_CHAT_URL`.
 
 Keep the secret in `.env` (every `.env` is denied to the `Read` tool) rather than in a file of its own, which the agents could read.
 
 #### Examples
 
-None of these except Slack has been verified with the flow yet.
+None of these except Slack and Google Chat has been verified with the flow yet.
 
 Discord (its webhooks accept a Slack-compatible payload at `<webhook URL>/slack`, so the Slack script can be reused):
 
@@ -146,7 +150,13 @@ osascript -e 'on run argv' -e 'display notification (item 2 of argv) with title 
   "issue-to-pr-flow" "${AI_FLOW_NOTIFY_KIND}: ${AI_FLOW_NOTIFY_TITLE}"
 ```
 
-Google Chat is tracked in [#17](https://github.com/maepon/issue-to-pr-flow/issues/17).
+Google Chat (an Incoming Webhook of a space; [#17](https://github.com/maepon/issue-to-pr-flow/issues/17)). Emoji are sent as Unicode, since
+shortcodes such as `:x:` are not turned into emoji there. A message that is too large is refused, so a body over 8000 characters is cut and
+ends with a note pointing to the Issue:
+
+```make
+GOOGLE_CHAT_WEBHOOK_URL = https://chat.googleapis.com/v1/spaces/<space>/messages?key=<key>&token=<token>
+```
 
 ### Models
 
@@ -254,7 +264,7 @@ and after `pull` it only works when git happens to guess the subtree shift.
 ```sh
 cd ai-flow
 cp .env.example .env
-# optional: notifications (SLACK_WEBHOOK_URL or NOTIFY_CMD; see Notifications in §2). Makefile syntax; make includes it
+# optional: notifications (SLACK_WEBHOOK_URL, GOOGLE_CHAT_WEBHOOK_URL or NOTIFY_CMD; see Notifications in §2). Makefile syntax; make includes it
 
 make check                   # project settings present, static checks, regression tests (selftest.sh). No cost
 make check-env               # environment variable checks. No cost
@@ -276,8 +286,8 @@ The flow directory only contains what is the same for every project. What you ad
 
 | Check | Command |
 |---|---|
-| A notification arrives | `printf 'test\n' \| AI_FLOW_NOTIFY_KIND=done AI_FLOW_NOTIFY_TITLE=test AI_FLOW_NOTIFY_ISSUE_URL=http://example.test <your NOTIFY_CMD>` (for Slack, prefix `SLACK_WEBHOOK_URL=<URL>`) |
-| A notification fires on abort | `NOTIFY_CMD=<command> ./scripts/run-phase.sh bogus-phase 99999 "http://example.test"` (plus the variables your command needs, such as `SLACK_WEBHOOK_URL`) |
+| A notification arrives | `printf 'test\n' \| AI_FLOW_NOTIFY_KIND=done AI_FLOW_NOTIFY_TITLE=test AI_FLOW_NOTIFY_ISSUE_URL=http://example.test <your NOTIFY_CMD>` (for Slack, prefix `SLACK_WEBHOOK_URL=<URL>`; for Google Chat, `GOOGLE_CHAT_WEBHOOK_URL=<URL>`) |
+| A notification fires on abort | `NOTIFY_CMD=<command> ./scripts/run-phase.sh bogus-phase 99999 "http://example.test"` (plus the variables your command needs, such as `SLACK_WEBHOOK_URL` or `GOOGLE_CHAT_WEBHOOK_URL`) |
 | The human gate works | `make impl ISSUE=n` on an Issue without an instruction document (stops with `Issue #n has no instruction document`) |
 
 Running `run-phase.sh` directly appends a header line to `tmp/cost-issue<N>.txt`. Use an unused Issue number when trying it,
@@ -491,7 +501,7 @@ The effective safeguards are these three. **Do not remove any of them.**
 
 Therefore **do not leave secrets in the environment variables passed to the agents.**
 The `Makefile` exports the notification secrets named in `NOTIFY_SECRET_VARS` for `NOTIFY_CMD`, so `claude-run.sh` removes the same names
-(and always `SLACK_WEBHOOK_URL`) with `env -u` (otherwise `echo` could read them and the `Read(./.env)` deny would be pointless).
+(and always `SLACK_WEBHOOK_URL` and `GOOGLE_CHAT_WEBHOOK_URL`) with `env -u` (otherwise `echo` could read them and the `Read(./.env)` deny would be pointless).
 
 ### Protecting the tooling files
 
@@ -554,6 +564,7 @@ scripts/
   ci-check.sh                        Runs make check in this repository by laying files out like a host repository (local and CI)
   resign-subtree-merge.sh            Signs the commits git subtree add / pull --squash created, keeping their trees (§3)
   notify-slack.sh                    Slack notification (the default NOTIFY_CMD when SLACK_WEBHOOK_URL is set)
+  notify-google-chat.sh              Google Chat notification (the default NOTIFY_CMD when only GOOGLE_CHAT_WEBHOOK_URL is set)
 
 prompts/
   _rules.md                          Common rules appended to every phase
@@ -716,7 +727,7 @@ What to check and adapt for your repository.
 
 ### Must do
 
-- [ ] **`.env`** in the flow directory: notifications if you want them (`SLACK_WEBHOOK_URL`, or `NOTIFY_CMD` and `NOTIFY_SECRET_VARS`; §2)
+- [ ] **`.env`** in the flow directory: notifications if you want them (`SLACK_WEBHOOK_URL`, `GOOGLE_CHAT_WEBHOOK_URL`, or `NOTIFY_CMD` and `NOTIFY_SECRET_VARS`; §2)
 - [ ] **Environment variables** for the strong and fast model IDs (defaults read `CLAUDE_CODE_OPUS_MODEL` /
       `CLAUDE_CODE_SONNET_MODEL`; put them in `.zshenv` or `.env`, not `.zshrc`)
 - [ ] **`.ai-flow/config.mk`** — `BASE_BRANCH`, tests (`TEST_CMD` / `SCRATCH_TEST_CMD`),

@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Google Chat notifications** ([#17](https://github.com/maepon/issue-to-pr-flow/issues/17)): `scripts/notify-google-chat.sh`, posting to the
+  Incoming Webhook of a space in `GOOGLE_CHAT_WEBHOOK_URL`. When `NOTIFY_CMD` is not defined it is used if `GOOGLE_CHAT_WEBHOOK_URL` is set and
+  `SLACK_WEBHOOK_URL` is not (Slack still comes first, so an existing `.env` behaves as before). Compared with `notify-slack.sh`, emoji are sent as
+  Unicode (Google Chat does not turn `:x:` into an emoji), `Content-Type` carries `charset=UTF-8`, and a body over 8000 characters is cut with a
+  note pointing to the Issue (Google Chat refuses a message that is too large: 11000 Japanese characters and 32000 ASCII characters got HTTP 400,
+  8000 Japanese characters went through). `check-env` stops when it is chosen without the URL. Checked against a real space; covered by
+  `selftest.sh` with the `curl` stub and by `ci-check.sh`
+- `GOOGLE_CHAT_WEBHOOK_URL` is in the default `NOTIFY_SECRET_VARS` and, like `SLACK_WEBHOOK_URL`, is always removed from the agents' environment
+  by `claude-run.sh`. **Host repositories that set `NOTIFY_SECRET_VARS` themselves** do not need to change anything for the removal, but must list
+  `GOOGLE_CHAT_WEBHOOK_URL` there for it to reach `notify-google-chat.sh`
+
 ## [0.7.1] - 2026-10-04
 
 ### Fixed
