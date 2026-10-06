@@ -14,6 +14,7 @@
 #     claude-run.sh keeps the notification secrets (NOTIFY_SECRET_VARS) out of the agent's environment
 #   - notify-slack.sh's conversion of **bold**, which did not show as bold in Japanese text
 #   - notify-google-chat.sh's payload: Unicode emoji, the same **bold** conversion, and cutting a body that is too large
+#   - The Go wrappers in examples/go/.ai-flow (several modules without go.work; gofmt -l answering through its output)
 #
 # Sourcing run-phase.sh would run its body, so only the functions under test and the TOOLING_PATHS definition are extracted
 # with sed and sourced. If the way functions are written changes (name() { ... } with the } at the start of a line) and extraction
@@ -513,6 +514,47 @@ mt_charged "require_no_mixed_tooling (a branch behind origin's tooling updates g
 
 mt_stopped "require_base (a wrong BASE_BRANCH stops impl before it is charged)" "BASE_BRANCH=nope; phase_impl" \
   "nope not found. Check that BASE_BRANCH"
+
+# --- examples/go/.ai-flow wrappers (multi-module Go: TEST_CMD / FORMAT_CHECK_CMD / FORMAT_FILE_CMD) ---
+# Run from the flow directory of a throwaway repository with two modules and no go.work, as the agents would.
+GOW="$(pwd)/examples/go/.ai-flow"
+if ! command -v go >/dev/null 2>&1 || ! command -v gofmt >/dev/null 2>&1; then
+  echo "selftest: note: go is not available; skipping the examples/go wrapper tests." >&2
+elif [ -d "${GOW}" ]; then
+  GR="${WORK}/gomods"
+  mkdir -p "${GR}/ai-flow" "${GR}/alpha" "${GR}/beta"
+  git -C "${GR}" init -q
+  printf 'module example.com/alpha\n\ngo 1.21\n' > "${GR}/alpha/go.mod"
+  printf 'package alpha\n\nfunc One() int { return 1 }\n' > "${GR}/alpha/a.go"
+  printf 'package alpha\n\nimport "testing"\n\nfunc TestOne(t *testing.T) {\n\tif One() != 1 {\n\t\tt.Fatal("x")\n\t}\n}\n' > "${GR}/alpha/a_test.go"
+  printf 'module example.com/beta\n\ngo 1.21\n' > "${GR}/beta/go.mod"
+  printf 'package beta\n\nfunc Two() int { return 2 }\n' > "${GR}/beta/b.go"
+  gor() { ( cd "${GR}/ai-flow" && GOCACHE="${WORK}/gocache" "$@" 2>&1 ); }
+
+  out=$(gor "${GOW}/go-test.sh"); got=$?
+  expect "go-test.sh (every module passes, run from the flow directory; new go.mod files count)" 0 "--- go test beta" "${out}" "${got}"
+  printf 'package beta\n\nimport "testing"\n\nfunc TestTwo(t *testing.T) { t.Fatal("broken") }\n' > "${GR}/beta/b_test.go"
+  out=$(gor "${GOW}/go-test.sh"); got=$?
+  expect "go-test.sh (fails when one module fails, and names it)" 1 "failed in: beta" "${out}" "${got}"
+  out=$(gor "${GOW}/go-test.sh" alpha); got=$?
+  expect "go-test.sh (only the modules given)" 0 "--- go test alpha" "${out}" "${got}"
+  out=$(gor "${GOW}/go-test.sh" nope); got=$?
+  expect "go-test.sh (a directory without go.mod fails)" 1 "nope/go.mod not found" "${out}" "${got}"
+
+  out=$(gor "${GOW}/gofmt-check.sh"); got=$?
+  expect "gofmt-check.sh (all formatted)" 0 "" "${out}" "${got}"
+  printf 'package beta\nfunc   Three() int { return 3 }\n' > "${GR}/beta/c.go"
+  out=$(gor "${GOW}/gofmt-check.sh"); got=$?
+  expect "gofmt-check.sh (lists the unformatted file and exits 1)" 1 "beta/c.go" "${out}" "${got}"
+
+  out=$(gor "${GOW}/gofmt-file.sh" "${GR}/alpha/a.go"); got=$?
+  expect "gofmt-file.sh (formatted)" 0 "" "${out}" "${got}"
+  out=$(gor "${GOW}/gofmt-file.sh" "${GR}/beta/c.go"); got=$?
+  expect "gofmt-file.sh (unformatted)" 1 "" "${out}" "${got}"
+  printf 'package beta\nfunc {\n' > "${GR}/beta/d.go"
+  out=$(gor "${GOW}/gofmt-file.sh" "${GR}/beta/d.go"); got=$?
+  expect "gofmt-file.sh (a syntax error is not taken as formatted)" 2 "" "${out}" "${got}"
+fi
 
 # --- resign-subtree-merge.sh (sign what git subtree --squash creates, without changing content) ---
 # Offline: the upstream is a local throwaway repository and signing uses a throwaway SSH key, so neither the network

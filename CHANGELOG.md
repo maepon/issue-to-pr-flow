@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Wrappers for a repository that one command from the flow directory cannot cover** ([#28](https://github.com/maepon/issue-to-pr-flow/issues/28)):
+  `examples/go/.ai-flow/go-test.sh` runs `go test -count=1 ./...` in every module (or the ones given) for Go without `go.work`, and
+  `gofmt-check.sh` / `gofmt-file.sh` turn `gofmt -l`'s output into the exit code. Covered by `selftest.sh` (skipped when `go` is missing).
+  `docs/setup.md` §9 has a new checklist item: put such wrappers in `.ai-flow/` (tooling, so the agents cannot rewrite the command the
+  judges re-run), call them by a path relative to the flow directory, allow exactly that form, and how this relates to `cd`.
+  The `config.mk` template mentions them
+
 ### Fixed
 
 - `prompts/_rules.md` and `prompts/spec.md` no longer tell the agents that `cd` to the repository root is denied ([#29](https://github.com/maepon/issue-to-pr-flow/issues/29)).
