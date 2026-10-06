@@ -23,7 +23,11 @@ Project-specific settings live in `.ai-flow/` at your repository root.
 
 ```sh
 # at the root of your repository
-git subtree add --prefix=ai-flow https://github.com/maepon/issue-to-pr-flow.git v0.1.0 --squash
+tag=vX.Y.Z                                            # a release tag; the latest is at the top of CHANGELOG.md
+git fetch https://github.com/maepon/issue-to-pr-flow.git "refs/tags/$tag"
+c=$(git rev-parse 'FETCH_HEAD^{commit}')
+git subtree add --prefix=ai-flow "$c" --squash
+git diff --stat "$c" HEAD:ai-flow                     # prints nothing when ai-flow/ is the tag's content
 cp -R ai-flow/examples/project/.ai-flow .ai-flow     # then edit .ai-flow/config.mk and friends
 
 cd ai-flow
@@ -32,8 +36,10 @@ make check                                            # static checks and regres
 make help
 ```
 
-Update with `git subtree pull --prefix=ai-flow https://github.com/maepon/issue-to-pr-flow.git <tag> --squash`.
-If your default branch requires signed commits, run `ai-flow/scripts/resign-subtree-merge.sh` right after `subtree add` / `subtree pull`
+Update the same way, with `git subtree merge --prefix=ai-flow "$c" --squash -m "Update ai-flow to $tag"` in place of `subtree add`.
+Pass the commit rather than the URL and tag: given a URL, `git subtree` fetches into `FETCH_HEAD` and reads it back later,
+so an IDE's background fetch in between can make it bring in your own repository without any error ([docs/setup.md](docs/setup.md) §3).
+If your default branch requires signed commits, run `ai-flow/scripts/resign-subtree-merge.sh` right after `subtree add` / `subtree merge`
 (the commits `git subtree` creates are unsigned; see [docs/setup.md](docs/setup.md) §3).
 See [CHANGELOG.md](CHANGELOG.md) for what changed.
 

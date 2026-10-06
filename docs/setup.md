@@ -226,26 +226,44 @@ The two `!.claude/` lines bring the permission files back in environments whose 
 
 ```sh
 # at the root of your repository
-git subtree add --prefix=ai-flow https://github.com/maepon/issue-to-pr-flow.git v0.1.0 --squash
+tag=vX.Y.Z                                   # a release tag; the latest is at the top of CHANGELOG.md
+git fetch https://github.com/maepon/issue-to-pr-flow.git "refs/tags/$tag"
+c=$(git rev-parse 'FETCH_HEAD^{commit}')     # the tag's commit, read right after your own fetch
+git subtree add --prefix=ai-flow "$c" --squash
+git diff --stat "$c" HEAD:ai-flow            # prints nothing when ai-flow/ is the tag's content
 
 # project settings: copy the template to the root and edit it
 cp -R ai-flow/examples/project/.ai-flow .ai-flow
 ```
 
-To update later:
+To update later, fetch the new tag the same way and merge its commit:
 
 ```sh
-git subtree pull --prefix=ai-flow https://github.com/maepon/issue-to-pr-flow.git <tag> --squash
+tag=vX.Y.Z
+git fetch https://github.com/maepon/issue-to-pr-flow.git "refs/tags/$tag"
+c=$(git rev-parse 'FETCH_HEAD^{commit}')
+git subtree merge --prefix=ai-flow "$c" --squash -m "Update ai-flow to $tag"
+git diff --stat "$c" HEAD:ai-flow            # prints nothing when ai-flow/ is the tag's content
 ```
 
-Read `CHANGELOG.md` for what changed before pulling a new tag. Do not edit files under the flow directory in your repository;
+Read `CHANGELOG.md` for what changed before bringing in a new tag. Do not edit files under the flow directory in your repository;
 send changes upstream instead (the flow treats its whole directory as tooling, §6).
+
+**Why not `git subtree add/pull <url> <tag>`.** Given a URL, `git subtree` runs `git fetch <url> <tag>` and then reads
+`FETCH_HEAD` back in a separate command. If another process fetches in between — an IDE with automatic fetch enabled
+(VS Code's `git.autofetch`, for example) while the repository is open — `FETCH_HEAD` points to your own `origin` branch,
+and `git subtree` brings in your own repository's content as the flow, ending with `Added dir 'ai-flow'` and no error
+(seen once on git 2.54.0 with VS Code open; the race itself was inferred, not caught). If your root has a `Makefile`,
+`ai-flow/` gets one too, so `make` does not tell you either. The steps above read `FETCH_HEAD` once, right after your own fetch,
+and the `git diff` check catches the remaining window. `git subtree pull` only accepts a URL and a ref, so updates use
+`git subtree merge`, which takes the commit; the squash commit still carries `git-subtree-split:`, so later updates
+find the previous position as before.
 
 ### If your default branch requires signed commits
 
 `git subtree` creates the "Squashed '<prefix>/' …" commit — and, for `add`, the merge commit too — unsigned
 (it has no signing option). The subtree PR has to be merged with a merge commit, so those unsigned commits would land on
-the default branch and a "require signed commits" rule blocks the merge. Right after `git subtree add` or `git subtree pull`, run:
+the default branch and a "require signed commits" rule blocks the merge. Right after `git subtree add` or `git subtree merge`, run:
 
 ```sh
 ai-flow/scripts/resign-subtree-merge.sh
@@ -257,7 +275,7 @@ It uses your usual signing setup, like `git commit -S`.
 
 Do **not** use `git rebase --rebase-merges --gpg-sign` for this: rebase re-runs the merge instead of reusing its tree.
 After `git subtree add` that put the subtree's files at the repository root instead of under the prefix (verified),
-and after `pull` it only works when git happens to guess the subtree shift.
+and after `merge` / `pull` it only works when git happens to guess the subtree shift.
 
 ### Configure
 
@@ -562,7 +580,7 @@ scripts/
   selftest.sh                        Regression tests for run-phase.sh functions and render-prompt.sh (called by check-scripts.sh;
                                      gh / npx / claude / curl are stubbed; runs throwaway repositories with the flow at ai-flow/ and tools/ai.flow/)
   ci-check.sh                        Runs make check in this repository by laying files out like a host repository (local and CI)
-  resign-subtree-merge.sh            Signs the commits git subtree add / pull --squash created, keeping their trees (§3)
+  resign-subtree-merge.sh            Signs the commits git subtree add / merge --squash created, keeping their trees (§3)
   notify-slack.sh                    Slack notification (the default NOTIFY_CMD when SLACK_WEBHOOK_URL is set)
   notify-google-chat.sh              Google Chat notification (the default NOTIFY_CMD when only GOOGLE_CHAT_WEBHOOK_URL is set)
 

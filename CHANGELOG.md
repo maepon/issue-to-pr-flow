@@ -1,12 +1,22 @@
 # Changelog
 
 All notable changes to this flow are recorded here, per tag.
-Host repositories bring a tag in with `git subtree pull`; read the entries since your current tag before pulling,
+Host repositories bring a tag in with `git subtree merge` (docs/setup.md §3); read the entries since your current tag before updating,
 especially **Changed** items that require edits to your `.ai-flow/`.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+### Changed
+
+- **Install and update steps fetch the tag first and pass its commit to `git subtree`** ([#27](https://github.com/maepon/issue-to-pr-flow/issues/27)):
+  `git fetch <url> refs/tags/<tag>`, then `git subtree add` / `git subtree merge` with `FETCH_HEAD^{commit}`, then
+  `git diff --stat <commit> HEAD:ai-flow` to confirm the content. Given a URL, `git subtree add/pull` reads `FETCH_HEAD` back after its own
+  fetch, and an IDE's automatic fetch in between made it bring in the host repository's own `HEAD` as `ai-flow/` without any error.
+  Updates now use `git subtree merge` because `pull` does not take a commit. The examples no longer show `v0.1.0`.
+  **Host repositories** do not need to change anything; use the new steps for the next update
+- `resign-subtree-merge.sh` mentions `git subtree merge` in its messages; it works the same after `add`, `merge` and `pull`
 
 ## [0.8.0] - 2026-10-05
 

@@ -492,7 +492,11 @@ else
   both_signed() { [ "$(sig HEAD)" = "G" ] && [ "$(sig HEAD^2)" = "G" ]; }
   tree_is() { [ "$(git -C "${H}" rev-parse HEAD:ext)" = "$(git -C "${RS}/up" rev-parse "$1^{tree}")" ]; }
 
-  (cd "${H}" && git subtree add -q --prefix=ext "${RS}/up" t1 --squash) >/dev/null 2>&1
+  # The documented steps (docs/setup.md §3): fetch the tag, then pass its commit to git subtree add / merge.
+  tag_commit() { git -C "${H}" fetch -q "${RS}/up" "refs/tags/$1" && git -C "${H}" rev-parse 'FETCH_HEAD^{commit}'; }
+  c=$(tag_commit t1)
+  (cd "${H}" && git subtree add -q --prefix=ext "${c}" --squash) >/dev/null 2>&1
+  git -C "${H}" diff --quiet "${c}" HEAD:ext || ng "resign-subtree-merge (precondition): subtree add of a commit did not put t1 under ext/."
   [ "$(sig HEAD^2)" = "N" ] || ng "resign-subtree-merge (precondition): git subtree add was expected to leave the squash commit unsigned."
   out=$(cd "${H}" && "${RESIGN}" 2>&1); got=$?
   if [ "${got}" -eq 0 ] && both_signed && tree_is t1; then pass=$((pass + 1)); else
@@ -502,11 +506,20 @@ else
   expect "resign-subtree-merge (already signed: nothing to do)" 0 "already signed" "${out}" "${got}"
   [ "$(git -C "${H}" rev-parse HEAD)" = "${before}" ] || ng "resign-subtree-merge (already signed): HEAD changed."
 
-  (cd "${H}" && git subtree pull -q --prefix=ext "${RS}/up" t2 --squash -m "pull t2") >/dev/null 2>&1
+  c=$(tag_commit t2)
+  (cd "${H}" && git subtree merge -q --prefix=ext "${c}" --squash -m "merge t2") >/dev/null 2>&1
   out=$(cd "${H}" && "${RESIGN}" 2>&1); got=$?
   if [ "${got}" -eq 0 ] && both_signed && tree_is t2; then pass=$((pass + 1)); else
-    ng "resign-subtree-merge (after pull): expected both commits signed and ext/ = t2 (exit ${got}). Output: ${out}"; fi
-  out=$(cd "${H}" && git subtree pull --prefix=ext "${RS}/up" t2 --squash 2>&1); got=$?
+    ng "resign-subtree-merge (after merge): expected both commits signed and ext/ = t2 (exit ${got}). Output: ${out}"; fi
+  git -C "${H}" log -1 --format=%B HEAD^2 | grep -q "^git-subtree-split: ${c}\$" \
+    || ng "resign-subtree-merge (after merge): the squash commit does not record git-subtree-split: t2."
+
+  echo 'three' >> "${RS}/up/a.txt"; upc commit -q -am "upstream 3"; upc tag t3
+  (cd "${H}" && git subtree pull -q --prefix=ext "${RS}/up" t3 --squash -m "pull t3") >/dev/null 2>&1
+  out=$(cd "${H}" && "${RESIGN}" 2>&1); got=$?
+  if [ "${got}" -eq 0 ] && both_signed && tree_is t3; then pass=$((pass + 1)); else
+    ng "resign-subtree-merge (after pull, the older way to update): expected both commits signed and ext/ = t3 (exit ${got}). Output: ${out}"; fi
+  out=$(cd "${H}" && git subtree pull --prefix=ext "${RS}/up" t3 --squash 2>&1); got=$?
   expect "resign-subtree-merge (the next subtree pull still finds the previous position)" 0 "already at commit" "${out}" "${got}"
   [ -z "$(git -C "${H}" log --format='%h %G?' | grep -v ' G$')" ] || ng "resign-subtree-merge: unsigned commits remain in the host history."
 
