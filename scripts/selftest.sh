@@ -6,6 +6,7 @@
 #   - TOOLING_PATHS / unformatted_files misreading root-relative paths from the flow directory
 #   - Dependence on the flow directory's name and depth (renaming it let modifications to tooling files through)
 #   - require_instruction / ensure_pr_url turning a gh failure into an error that means something else
+#   - Tooling commits already on the local BASE_BRANCH being noticed only in create_pr, after every step was paid for
 #   - The judges' NEEDS_HUMAN stopping without waiting for more rounds
 #   - Handling of the formatting commands and target patterns from the project settings (.ai-flow/config.mk),
 #     and how render-prompt.sh fills placeholders
@@ -39,7 +40,8 @@ trap 'rm -rf "${WORK}"' EXIT
 LIB="${WORK}/lib.sh"
 grep '^TOOLING_PATHS=' "${SRC}" > "${LIB}"
 [ -s "${LIB}" ] || ng "Could not extract the TOOLING_PATHS definition from run-phase.sh."
-FUNCS="worktree_paths tooling_state format_target format_ok unformatted_files require_instruction ensure_pr_url handle_verdict notify"
+FUNCS="worktree_paths tooling_state format_target format_ok unformatted_files require_instruction ensure_pr_url handle_verdict notify
+  require_base mixed_tooling require_no_mixed_tooling phase_impl phase_review"
 for fn in ${FUNCS}; do
   body=$(sed -n "/^${fn}() {/,/^}/p" "${SRC}")
   if [ -z "${body}" ]; then
@@ -461,6 +463,56 @@ out=$(agent_env SLACK_WEBHOOK_URL=s DISCORD_WEBHOOK_URL=d OTHER_SECRET=o KEEP_ME
 expect "claude-run.sh (NOTIFY_SECRET_VARS and SLACK_WEBHOOK_URL are removed, the rest is kept)" 0 "SEEN: KEEP_ME" "${out}" "${got}"
 out=$(agent_env SLACK_WEBHOOK_URL=s GOOGLE_CHAT_WEBHOOK_URL=g KEEP_ME=k NOTIFY_SECRET_VARS=); got=$?
 expect "claude-run.sh (SLACK_WEBHOOK_URL and GOOGLE_CHAT_WEBHOOK_URL are removed even with NOTIFY_SECRET_VARS empty)" 0 "SEEN: KEEP_ME" "${out}" "${got}"
+
+# --- require_no_mixed_tooling (impl / review stop on tooling commits before anything is charged) ---
+# run_step is stubbed to print CHARGED, so a case that gets past the entry checks shows it. The instruction check is the real one (gh stub).
+MT="${WORK}/mixed"
+git init -q --bare "${MT}/origin.git"
+git clone -q "${MT}/origin.git" "${MT}/repo" 2>/dev/null
+mtc() { git -C "${MT}/repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false "$@"; }
+mkdir -p "${MT}/repo/ai-flow/scripts" "${MT}/repo/src"
+echo 'x' > "${MT}/repo/ai-flow/scripts/a.sh"; echo 'x' > "${MT}/repo/src/app.txt"
+mtc add -A; mtc commit -q -m init; mtc branch -M main; mtc push -q -u origin main 2>/dev/null
+MT_VARS='FAST=f; STRONG=s; REVIEW_JUDGE=j; MAX_ROUNDS=1; VERDICT_FILE=v; PR_TITLE_FILE=t; PR_BODY_FILE=b; COMMIT_PROFILE=c; run_step() { echo CHARGED; exit 3; }'
+mt_run() {   # mt_run <phase function>: runs it from the flow directory with BASE_BRANCH=main
+  GH_MODE=issue_tag run_case "${MT}/repo/ai-flow" "BASE_BRANCH=main; ${MT_VARS}; $1"
+}
+mt_stopped() {   # mt_stopped <name> <phase function> <needle>: stopped by fail, before run_step
+  out=$(mt_run "$2"); got=$?
+  expect "$1" 1 "$3" "${out}" "${got}"
+  case "${out}" in *CHARGED*) ng "$1: run_step ran before the check stopped it. Output: ${out}" ;; esac
+}
+mt_charged() {   # mt_charged <name> <phase function>: got past the entry checks
+  out=$(mt_run "$2"); got=$?
+  expect "$1" 3 "CHARGED" "${out}" "${got}"
+}
+
+mt_charged "require_no_mixed_tooling (nothing ahead of origin: impl goes on)" phase_impl
+echo 'y' >> "${MT}/repo/src/app.txt"; mtc commit -q -am "project change"
+mt_charged "require_no_mixed_tooling (project commits ahead of origin, as when review is resumed)" phase_review
+echo 'y' >> "${MT}/repo/ai-flow/scripts/a.sh"; mtc commit -q -am "tooling update, not pushed"
+mt_stopped "require_no_mixed_tooling (a tooling commit on the local main stops impl before it is charged)" phase_impl \
+  "FAIL:Tooling files are in commits that are not on origin/"
+mt_stopped "require_no_mixed_tooling (the message names the file)" phase_impl "ai-flow/scripts/a.sh"
+mtc switch -q -c feature/9-x; echo 'z' >> "${MT}/repo/src/app.txt"; mtc commit -q -am "agent commit"
+mt_stopped "require_no_mixed_tooling (a project branch cut from it stops review before it is charged)" phase_review \
+  "FAIL:Tooling files are in commits that are not on origin/"
+out=$(GH_MODE=issue_notag run_case "${MT}/repo/ai-flow" "BASE_BRANCH=main; ${MT_VARS}; phase_impl"); got=$?
+expect "require_no_mixed_tooling (checked before the instruction document, so any Issue number can try it)" 1 "FAIL:Tooling files" "${out}" "${got}"
+
+# Once the tooling commit is on origin, the branch carries only project commits
+mtc push -q origin "main" 2>/dev/null; mtc fetch -q
+mt_charged "require_no_mixed_tooling (after pushing the tooling commit and fetching)" phase_review
+# Tooling updates that landed on origin after the fork are not the branch's (two dots showed them reversed)
+mtc switch -q main; echo 'w' >> "${MT}/repo/ai-flow/scripts/a.sh"; mtc commit -q -am "tooling update 2"; mtc push -q origin main 2>/dev/null
+mtc switch -q feature/9-x
+out=$(run_case "${MT}/repo/ai-flow" 'BASE_BRANCH=main; mixed_tooling HEAD; echo END'); got=$?
+expect "mixed_tooling (tooling updates on origin after the fork are not counted)" 0 "END" "${out}" "${got}"
+[ "${out}" = "END" ] || ng "mixed_tooling (origin moved on after the fork): expected nothing but got \"${out}\"."
+mt_charged "require_no_mixed_tooling (a branch behind origin's tooling updates goes on)" phase_review
+
+mt_stopped "require_base (a wrong BASE_BRANCH stops impl before it is charged)" "BASE_BRANCH=nope; phase_impl" \
+  "nope not found. Check that BASE_BRANCH"
 
 # --- resign-subtree-merge.sh (sign what git subtree --squash creates, without changing content) ---
 # Offline: the upstream is a local throwaway repository and signing uses a throwaway SSH key, so neither the network

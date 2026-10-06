@@ -263,6 +263,38 @@ ${msg}"
     || fail "Issue #$ISSUE has no instruction document. Run make spec first and have a human check the instruction document."
 }
 
+# Stops unless origin/<BASE_BRANCH> exists. Without it, mixed_tooling's git diff error would be swallowed by || true
+require_base() {
+  git rev-parse --verify --quiet "origin/${BASE_BRANCH}" >/dev/null \
+    || fail "origin/${BASE_BRANCH} not found. Check that BASE_BRANCH in .ai-flow/config.mk matches the default branch."
+}
+
+# Prints the tooling files in the commits a PR from <rev> would carry, one per line (empty when none).
+# Three dots: the diff from where <rev> forked off origin/<BASE_BRANCH>, which is what the PR shows. Two dots compared with
+# origin/<BASE_BRANCH>'s current tree, so tooling updates that landed there after the fork showed up reversed and stopped the flow.
+# Tooling commits on a local BASE_BRANCH that is not pushed yet are after the fork, so they are still caught.
+# -z avoids quoting (same reason as worktree_paths). --no-renames because a rename only shows
+# the destination, which would miss moving a file out of the tooling.
+mixed_tooling() {
+  git diff --name-only -z --no-renames "origin/${BASE_BRANCH}...$1" | tr '\0' '\n' | grep -E "$TOOLING_PATHS" || true
+}
+
+# Run first in impl / review, before require_instruction: it needs only the local git, so it stops before anything is charged
+# (and can be tried with an Issue number that has no instruction document).
+# Tooling commits can be there before the phase starts: a subtree update or an .ai-flow/ edit committed on the local BASE_BRANCH and
+# not pushed (or its PR not merged yet) is carried along by a project branch cut from it. create_pr would stop on it only after
+# planning, judging, implementing, reviewing and committing were all paid for.
+# HEAD rather than a feature/ branch: impl normally starts on BASE_BRANCH, before the branch exists.
+# A BASE_BRANCH ahead of origin is not a reason to stop by itself: when review is resumed, the agent's own commits are ahead too.
+require_no_mixed_tooling() {
+  local mixed
+  require_base
+  mixed=$(mixed_tooling HEAD)
+  [ -z "$mixed" ] || fail "Tooling files are in commits that are not on origin/${BASE_BRANCH}, so the PR would carry them. Stopped before anything was charged.
+Push the tooling commits to ${BASE_BRANCH} (or merge their PR) and git fetch. If the project branch was cut before that, cut it again from origin/${BASE_BRANCH}. Then re-run:
+$mixed"
+}
+
 # push and PR creation are not given to the agent; they happen here,
 # so the branch name and what is committed can be checked mechanically right before the outward-facing operation.
 # Blocking dangerous push forms by enumerating permission rules leaks, so push is simply not granted.
@@ -276,17 +308,13 @@ create_pr() {
     *)  fail "The branch name does not start with feature/ (${branch}). Project changes go on feature/ branches." ;;
   esac
 
-  # Without the base, the mixing check below would let git diff's error be swallowed by || true. Check it first
-  git rev-parse --verify --quiet "origin/${BASE_BRANCH}" >/dev/null \
-    || fail "origin/${BASE_BRANCH} not found. Check that BASE_BRANCH in .ai-flow/config.mk matches the default branch."
+  require_base
 
   commits=$(git rev-list --count "origin/${BASE_BRANCH}..${branch}")
   [ "$commits" -gt 0 ] || fail "No difference from origin/${BASE_BRANCH}. The agent may not have committed."
 
-  # Are tooling files mixed into the project's commits?
-  # -z avoids quoting (same reason as worktree_paths). --no-renames because a rename only shows
-  # the destination, which would miss moving a file out of the tooling.
-  mixed=$(git diff --name-only -z --no-renames "origin/${BASE_BRANCH}..${branch}" | tr '\0' '\n' | grep -E "$TOOLING_PATHS" || true)
+  # Are tooling files mixed into the project's commits? (Checked at the start of impl / review too; this catches what was committed since)
+  mixed=$(mixed_tooling "$branch")
   if [ -n "$mixed" ]; then
     fail "Tooling files are mixed into the project's commits. Put them in a separate commit:
 $mixed"
@@ -361,6 +389,7 @@ $RESULT"
 
 phase_impl() {
   PHASE=impl
+  require_no_mixed_tooling
   require_instruction
   run_step "Writing the implementation plan" prompts/plan.md "$FAST"
 
@@ -390,6 +419,7 @@ Cost so far: \$$(total_cost)"
 
 phase_review() {
   PHASE=review
+  require_no_mixed_tooling
   require_instruction
 
   round=1

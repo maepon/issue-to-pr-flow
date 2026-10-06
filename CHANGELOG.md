@@ -8,6 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **The tooling mixing check also runs at the start of `impl` and `review`** ([#31](https://github.com/maepon/issue-to-pr-flow/issues/31)),
+  before the instruction document is fetched, so it stops before anything is charged. Tooling commits on the local `BASE_BRANCH` that are not
+  pushed yet (a `git subtree` update, an `.ai-flow/` edit), carried along by the project branch, used to stop the flow only in `create_pr`, after
+  planning, judging, implementing, reviewing and committing were paid for. A wrong `BASE_BRANCH` (`origin/… not found`) is caught there too.
+  Covered by `selftest.sh`, which runs `phase_impl` / `phase_review` with `run_step` stubbed
+
+### Changed
+
+- The mixing check (at the start and in `create_pr`) looks at the diff from where the branch forked off `origin/<BASE_BRANCH>` (three dots, what the
+  PR shows) rather than at `origin/<BASE_BRANCH>`'s current tree. Tooling updates that landed on `BASE_BRANCH` after the fork no longer show up
+  reversed and stop the flow, so not having pulled a tooling update does not stop `impl`. **Host repositories** do not need to change anything
+
 ## [0.8.1] - 2026-10-06
 
 ### Changed
