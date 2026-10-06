@@ -50,6 +50,7 @@ Notifications are optional: a Slack or Google Chat Incoming Webhook (with `curl`
 
 - [docs/setup.md](docs/setup.md) — setup, usage, verdict and permission design, troubleshooting, installation checklist
 - [examples/project/.ai-flow/](examples/project/.ai-flow/) — the project settings template, with comments
+- [examples/go/.ai-flow/](examples/go/.ai-flow/) — wrappers for a Go repository with several modules (tests, `gofmt`)
 
 ## Developing this repository
 

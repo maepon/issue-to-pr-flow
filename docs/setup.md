@@ -613,6 +613,7 @@ docs/
   setup.md                           This guide
 
 examples/project/.ai-flow/           Template for project settings (copy to your repository root)
+examples/go/.ai-flow/                Wrappers for Go with several modules: go-test.sh, gofmt-check.sh, gofmt-file.sh (§9)
 
 .github/workflows/check.yml          CI for this repository (inert inside a host repository)
 
@@ -761,11 +762,26 @@ What to check and adapt for your repository.
 - [ ] **`.ai-flow/config.mk`** — `BASE_BRANCH`, tests (`TEST_CMD` / `SCRATCH_TEST_CMD`),
       formatting (`FORMAT_CHECK_CMD` / `FORMAT_FILE_CMD` / `FORMAT_FIX_CMD` / `FORMAT_GLOBS`), `OUTPUT_LANG`.
       `FORMAT_FILE_CMD` must **exit 0 when the file is formatted**. For tools that answer through their output, such as `gofmt -l`,
-      write a wrapper that answers with the exit code. **It must not format** (check only). If the check itself fails, the flow stops.
+      write a wrapper that answers with the exit code (`examples/go/.ai-flow/gofmt-file.sh` / `gofmt-check.sh`).
+      **It must not format** (check only). If the check itself fails, the flow stops.
       **If your project has no formatter, leave all four `FORMAT_*` values empty**: the formatting steps disappear from the prompts and the per-file check is skipped
 - [ ] **Commands run from the flow directory** — the agents use the flow directory (e.g. `ai-flow/`) as the current directory,
       so every command in `config.mk` must work from there. `npm test` / `npm run …` find the root `package.json` by themselves;
       for other tools, give paths relative to the flow directory (e.g. `python3 -m unittest discover -s ../tests`)
+- [ ] **No single command covers the repository from the flow directory?** (several modules or packages each with their own settings:
+      Go modules without `go.work`, Gradle builds that are not one multi-project build, JS packages with their own configs, ...)
+      `TEST_CMD` and `FORMAT_CHECK_CMD` still have to be **one command** run from the flow directory, because the judges re-run them
+      to verify claims. Write a wrapper that walks the modules, as `examples/go/.ai-flow/go-test.sh` does for Go
+      (`go test ../<module>/...` fails there with "directory prefix … does not contain main module"):
+      - **Put the wrappers in `.ai-flow/` at the root**, e.g. `cp ai-flow/examples/go/.ai-flow/*.sh .ai-flow/`. `.ai-flow/` is tooling,
+        so the working tree check stops an agent that edits them. In the project's own `scripts/` an agent could rewrite the command
+        the judges re-run
+      - **Call them by a path relative to the flow directory** (`../.ai-flow/go-test.sh` for `ai-flow/`, `../../.ai-flow/…` one level deeper),
+        and allow exactly that form in `.ai-flow/permissions.json`, e.g. `"Bash(../.ai-flow/go-test.sh:*)"`, `"Bash(../.ai-flow/gofmt-check.sh)"`,
+        `"Bash(../.ai-flow/gofmt-file.sh:*)"`, plus `"Bash(go test:*)"` if the agents should test one module by hand
+        (checked on Claude Code 2.1.285: these allows let the three wrappers run, and a script in `.ai-flow/` that was not allowed was denied)
+      - The relative path only works from the flow directory. The agents can `cd` elsewhere (into a module, to run its tests),
+        but `_rules.md` asks them to come back before running anything else (§6, "Pitfalls found by measurement")
 - [ ] **No tests?** Leave `TEST_CMD` and `SCRATCH_TEST_CMD` both empty. The plan then maps each acceptance criterion to a verification
       command (or a `manual` check with steps) instead of a test, implement runs those commands, and the judges re-run them.
       The verdict design does not change: it is still decided only by acceptance criteria numbers.
