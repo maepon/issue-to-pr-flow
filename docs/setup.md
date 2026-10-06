@@ -471,6 +471,7 @@ Each is one short run on the fast model, so the cost is small (they cannot be ch
 | Blocks by deny do **not** appear in `permission_denials`; they come back as tool errors | Some denials do not show up in the list |
 | Even when a tool call is denied, `claude` exits with **0** | `claude-run.sh` reads `permission_denials` and prints them to stderr |
 | With the flow directory as the current directory, Bash commands whose arguments point outside it (`git diff -- ../README.md`) are denied, while `Read` / `Write` / `Edit` reach those files | `claude-run.sh` passes `--add-dir=<repository root>`. Use the `=` form: `--add-dir` takes several values and would swallow the prompt |
+| With `--add-dir=<repository root>`, `cd` to the root or to a subdirectory is **not** denied, and the new current directory **persists** across calls (Claude Code also moves its "Primary working directory"). `cd` outside the repository is denied, naming the two allowed directories (checked on 2.1.285, 2026-10-06; in the trial recorded in #29, whose version was not noted, it exited 0 and the current directory went back to the flow directory) | `_rules.md` used to say "`cd` to the root is denied"; it now asks the agents to stay in the flow directory as a rule (the prompts' commands and paths are relative to it) and to `cd` back if they move. Commands in `config.mk` cannot rely on a relative path once the agent has moved |
 | Headless runs load the MCP connectors linked to the user's claude.ai account | `claude-run.sh` passes `--strict-mcp-config` so none are loaded |
 
 ### Allows that must never be granted
@@ -671,6 +672,8 @@ If explanations or decoration get mixed in, `make` cannot proceed and stops wait
 - **An agent can run only one command per call.** Compound commands (`cd X && cmd`, `cmd1; cmd2`,
   control structures, `VAR=value cmd` prefixes, command substitution, pipes, heredocs) are **denied even when the command is allowed.**
   `cd` is allowed and the current directory persists across calls, so they run it in two calls.
+  `cd` to the root is not blocked either (§6, "Pitfalls found by measurement"); `_rules.md` asks the agents to stay in the flow directory
+  because the commands and paths in the prompts are written relative to it, and to `cd` back if they move.
   Without this guidance in `_rules.md`, agents keep getting denied and spin
 - **`cp` is not allowed** (`cp ./.env /tmp/x` would get around the `Read(./.env)` deny).
   Agents create test input files with the `Write` tool

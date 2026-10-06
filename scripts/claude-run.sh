@@ -82,7 +82,9 @@ trap 'rm -f "$MERGED_SETTINGS"' EXIT
 #                        (git diff -- ../../README.md, git grep -- ../x.html, ...). Adding the repository root as a working
 #                        directory lets them through. Read / Write / Edit already reached files outside, so this does not
 #                        widen what the agent can do. Pass it with "=": --add-dir takes several values and, separated by a
-#                        space, would swallow the prompt that follows
+#                        space, would swallow the prompt that follows. It also lets `cd` move to the root (and the move
+#                        persists; outside the repository is still denied; measured on 2.1.285). _rules.md asks the agents to
+#                        stay in the flow directory, since the prompts' commands and paths are relative to it
 #   --strict-mcp-config  Do not load the MCP connectors linked to the user's claude.ai account. The flow does not use them,
 #                        their tool descriptions were added to every step's prompt, and replies mentioned authorizing them
 #   < /dev/null          Do not wait for standard input (otherwise "no stdin data received in 3s" is printed after a 3 s wait)
