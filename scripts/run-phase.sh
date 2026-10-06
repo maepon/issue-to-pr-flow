@@ -346,7 +346,8 @@ Cumulative cost: \$$(total_cost)"
 [ -n "$STRONG" ] || fail "STRONG_MODEL is empty. Check CLAUDE_CODE_OPUS_MODEL or write STRONG_MODEL in .env (if it is defined in .zshrc, non-interactive runs do not read it)."
 [ -n "$FAST" ]   || fail "FAST_MODEL is empty. Check CLAUDE_CODE_SONNET_MODEL or write FAST_MODEL in .env."
 
-# Only the judges' model (plan-judge / review-judge) can be swapped. The default here is the strong model.
+# Only the judges' models can be swapped: REVIEW_JUDGE_MODEL for review-judge, PLAN_JUDGE_MODEL for plan-judge (unset = the same as
+# REVIEW_JUDGE_MODEL). Each accepts strong / fast or a raw model ID. The default here is the strong model.
 # review-judge works against an implementation, so it can verify with test runs, the formatting check, and the diff (the send-backs
 # seen in the original repository were cross-checks such as "one of the four documents the instruction listed was not updated").
 # To A/B whether the fast model is enough, REVIEW_JUDGE_MODEL=fast switches it (the Makefile default is the fast model; the default
@@ -355,14 +356,20 @@ Cumulative cost: \$$(total_cost)"
 # In the original repository plan-judge was fixed to the strong model: it compares documents (instruction vs plan) and cannot verify
 # by running anything, and both of its send-backs there were inferences the prompt did not ask for ("the proposed tests would pass even
 # with the implementation broken") - the first thing lost with a weaker model. Later plan-judge was aligned with REVIEW_JUDGE too, and
-# the Makefile default makes it the fast model.
+# the Makefile default makes it the fast model. PLAN_JUDGE_MODEL separates them again when wanted: with one variable for both,
+# A/B-ing review-judge moved plan-judge too, so a difference in results could not be traced to either judge.
 #
 # claude-run.sh prints the model ID used for each step to stderr, so the logs show which one ran.
-case "${REVIEW_JUDGE_MODEL:-}" in
-  ""|strong) REVIEW_JUDGE="$STRONG" ;;
-  fast)      REVIEW_JUDGE="$FAST" ;;
-  *)         REVIEW_JUDGE="$REVIEW_JUDGE_MODEL" ;;
-esac
+# Prints the model ID for a judge setting: strong / fast (or empty = strong) / a raw model ID
+judge_model() {
+  case "$1" in
+    ""|strong) echo "$STRONG" ;;
+    fast)      echo "$FAST" ;;
+    *)         echo "$1" ;;
+  esac
+}
+REVIEW_JUDGE=$(judge_model "${REVIEW_JUDGE_MODEL:-}")
+PLAN_JUDGE=$(judge_model "${PLAN_JUDGE_MODEL:-${REVIEW_JUDGE_MODEL:-}}")
 
 phase_spec() {
   PHASE=spec
@@ -396,7 +403,7 @@ phase_impl() {
   round=1
   while : ; do
     : > "$VERDICT_FILE"
-    run_step "Judging against the instruction document, round ${round}/${MAX_ROUNDS}" prompts/plan-judge.md "$REVIEW_JUDGE"
+    run_step "Judging against the instruction document, round ${round}/${MAX_ROUNDS}" prompts/plan-judge.md "$PLAN_JUDGE"
     verdict=$(read_verdict)
     handle_verdict "$verdict" "plan" "make impl ISSUE=${ISSUE}" && break
     if [ "$round" -ge "$MAX_ROUNDS" ]; then
