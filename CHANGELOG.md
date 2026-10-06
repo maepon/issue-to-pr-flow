@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `prompts/_rules.md` and `prompts/spec.md` no longer tell the agents that `cd` to the repository root is denied ([#29](https://github.com/maepon/issue-to-pr-flow/issues/29)).
+  With `--add-dir=<root>` (since 0.2.1) it is not: on Claude Code 2.1.285, `cd` to the root or a subdirectory went through and the current
+  directory persisted, and only `cd` outside the repository was denied. The rules now ask the agents to stay in the flow directory, because
+  the commands and paths in the prompts are relative to it, and to `cd` back if they move. The measurement is in the table of `docs/setup.md` §6
+
 ### Added
 
 - **The tooling mixing check also runs at the start of `impl` and `review`** ([#31](https://github.com/maepon/issue-to-pr-flow/issues/31)),
