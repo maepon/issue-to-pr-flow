@@ -558,6 +558,12 @@ what the reviewer read and the actual diff would differ.
 **Project changes** go on a `feature/` branch and into a PR. **The two are never mixed in one commit.**
 
 `run-phase.sh` checks this right before creating the PR and aborts without creating it if they are mixed.
+It also checks at the very start of `impl` and `review`, before the instruction document is fetched, so tooling commits that are
+already there stop the phase before anything is charged: a `git subtree` update or an `.ai-flow/` edit committed on the local
+`BASE_BRANCH` and not pushed yet (or its PR not merged yet), carried along by a project branch cut from it.
+Both checks look at the diff from where the branch forked off `origin/<BASE_BRANCH>` (`origin/<BASE_BRANCH>...HEAD`, what the PR would show),
+so tooling updates that landed on `origin/<BASE_BRANCH>` after the fork do not count. A `BASE_BRANCH` ahead of `origin` is not a reason
+to stop by itself (when `review` is resumed, the agent's own commits are ahead too).
 
 ---
 
@@ -697,8 +703,9 @@ Common ones:
 | `… modified tooling files` | Restore with `git` and re-run. **This also happens if a human touched them during a phase** |
 | `… left files that fail the formatting check` | Apply the formatter, then resume with `make review`. If it appears for formatted files, the formatter is missing or there is a syntax error (a failing check is treated as a stop too) |
 | `The branch name does not start with feature/` | The naming rule. The implementation remains, so recreate the branch |
-| `Tooling files are mixed into the project's commits` | Split them into separate commits. **It also happens when the project branch forked from an old point and tooling updates have since landed on `BASE_BRANCH`** (they show up reversed in the `origin/<BASE_BRANCH>..<branch>` diff). In that case rebase the project branch onto `origin/<BASE_BRANCH>` and run `make create-pr` |
-| `origin/… not found` | `BASE_BRANCH` in `.ai-flow/config.mk` does not match the default branch. After fixing it, resume with `make create-pr` without redoing the review (resuming from `review` duplicates the `review-judge` comments) |
+| `Tooling files are in commits that are not on origin/…` | At the start of `impl` / `review`, before anything is charged. Tooling commits (a `git subtree` update, an `.ai-flow/` edit) are on the local `BASE_BRANCH` and not on `origin` yet. Push them (or merge their PR) and `git fetch`; if the project branch was cut before that, cut it again from `origin/<BASE_BRANCH>`. Then re-run the same command |
+| `Tooling files are mixed into the project's commits` | At the end of `review`: tooling files went into commits made during the phase. Split them into separate commits and run `make create-pr`. (Up to 0.8.1, tooling updates that landed on `BASE_BRANCH` after the fork also showed up here, reversed; the check now looks at the diff from the fork) |
+| `origin/… not found` | `BASE_BRANCH` in `.ai-flow/config.mk` does not match the default branch. At the start of `impl` / `review` nothing has been charged yet; fix it and re-run. At the end of `review`, resume with `make create-pr` without redoing the review (resuming from `review` duplicates the `review-judge` comments) |
 | `No difference from origin/…` | The agent did not commit. Resume with `make review` |
 | `PR not found` | When running `code-review` / `pr-review` on their own, the current branch has no PR |
 | `… was not approved after <MAX_ROUNDS> rounds` | **This happens when the acceptance criteria are vague.** Revisit the instruction document |
@@ -807,7 +814,7 @@ Things that tend to get cut because "it looks easy", and that **silently** stop 
 | **`RESIDUAL_RISK` / `CODE_REVIEW` / `DEVILS_ADVOCATE` do not affect verdicts** | If they could overturn an approval, the writers would hold back |
 | **`push` and `gh pr` are not given to the agents** | Blocking dangerous push forms by enumerating permission rules leaks |
 | **The working tree is checked after each step** | `Write` / `Edit` cannot be restricted by path, so this is the only safeguard |
-| **git output paths are read with `-z`** (`worktree_paths` and `create_pr` in `run-phase.sh`) | Plain `--porcelain` / `--name-only` quote paths containing non-ASCII characters or spaces as `"…"`, so they do not match `^` in `TOOLING_PATHS`. Modified tooling files and tooling mixed into project commits **pass silently** |
+| **git output paths are read with `-z`** (`worktree_paths` and `mixed_tooling` in `run-phase.sh`) | Plain `--porcelain` / `--name-only` quote paths containing non-ASCII characters or spaces as `"…"`, so they do not match `^` in `TOOLING_PATHS`. Modified tooling files and tooling mixed into project commits **pass silently** |
 | **A failing notification only warns** (`notify()` in `run-phase.sh`) | If it stopped the flow, a flaky webhook would throw away a finished implementation or review |
 | **Agents format; the shell only checks** | If the shell rewrote the diff, what the reviewer read and the actual diff would differ |
 | **A failing formatting check stops the flow** (`format_ok()` is false on failure) | Judging only by empty output makes a missing formatter or a syntax error that prints nothing count as "formatted", and **everything passes silently** |
