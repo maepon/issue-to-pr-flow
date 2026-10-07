@@ -8,6 +8,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`PLAN_MODEL`** ([#41](https://github.com/maepon/issue-to-pr-flow/issues/41)): the model for writing and revising the plan (plan / plan-revise),
+  separate from `FAST_MODEL`, which implement and review-fix keep using (same values: `strong` / `fast` / a raw model ID). Unset, it is the fast
+  model, so nothing changes for existing settings; it does not follow the judges' variables. In one host repository plans from the fast model
+  stopped at `MAX_ROUNDS` with the same kind of send-back in a different acceptance criterion each round, while the strong model's were not sent
+  back; making `FAST_MODEL` strong fixed that but also moved implementing, the most expensive step. Not to be confused with `PLAN_JUDGE_MODEL`,
+  which judges the plan. `make help` and the Roles table in `docs/setup.md` list it separately. Covered by `selftest.sh` (the models plan /
+  plan-revise / implement run with, the Makefile defaults). In `run-phase.sh`, `judge_model` is renamed `model_id`
+
 ## [0.9.0] - 2026-10-06
 
 ### Added
