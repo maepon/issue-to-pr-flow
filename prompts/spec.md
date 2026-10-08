@@ -67,7 +67,7 @@ Include the following.
     - Presence of a string: `git grep -n "<pattern>" -- ':/'` (`':/'` makes it search the whole repository)
   - **Do not require a file the agents copy with `Write` to equal its source byte for byte.** The agents cannot copy bytes:
     `cp` is not allowed (it would get around the `.env` deny), and `Write` takes the content as a JSON string, so an escape in the source
-    (`<`, which JSON encoders often write for `<`) is written as the raw character, doubling the backslash writes two of them, and a
+    (`\u003c`, which JSON encoders often write for `<`) is written as the raw character, doubling the backslash writes two of them, and a
     final newline is easily lost. For a copy that must match byte for byte (real output kept as a fixture, for example), write one of these
     - The copy is made by a human (`cp`) before `make impl`, or by a copy command the project allows in `.ai-flow/permissions.json`
       (name the exact command and check that it is allowed). Then the AC can require byte equality
