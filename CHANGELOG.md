@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **An instruction document no longer asks the agents for a byte-for-byte copy they cannot make** ([#44](https://github.com/maepon/issue-to-pr-flow/issues/44)).
+  `Write` takes the content as a JSON string, so a copy of a file with escapes (`\u003c`, which JSON encoders often write for `<`) gets the raw
+  character, and `cp` is not allowed. In one host repository an AC asked for real output copied with `Write` and checked byte for byte; neither
+  judge saw that it could not be met, and the implementation reached `NEEDS_HUMAN` only on the third review. `prompts/spec.md` now has a human
+  (`cp` before `make impl`) or a copy command allowed in `.ai-flow/permissions.json` make such a copy, or compares contents instead.
+  `plan-judge.md` and `review-judge.md` treat the AC as `NEEDS_HUMAN` when neither is given, and `review-judge.md` checks byte equality with
+  `git diff --no-index` (already allowed) instead of reading the files. `docs/setup.md` records the measurement in §6 and has a copy wrapper
+  that fixes both directories in the §9 checklist. **Host repositories** do not need to change anything
+
 ## [0.10.0] - 2026-10-07
 
 ### Added
