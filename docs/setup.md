@@ -480,6 +480,7 @@ Each is one short run on the fast model, so the cost is small (they cannot be ch
 | Even when a tool call is denied, `claude` exits with **0** | `claude-run.sh` reads `permission_denials` and prints them to stderr |
 | With the flow directory as the current directory, Bash commands whose arguments point outside it (`git diff -- ../README.md`) are denied, while `Read` / `Write` / `Edit` reach those files | `claude-run.sh` passes `--add-dir=<repository root>`. Use the `=` form: `--add-dir` takes several values and would swallow the prompt |
 | With `--add-dir=<repository root>`, `cd` to the root or to a subdirectory is **not** denied, and the new current directory **persists** across calls (Claude Code also moves its "Primary working directory"). `cd` outside the repository is denied, naming the two allowed directories (checked on 2.1.285, 2026-10-06; in the trial recorded in #29, whose version was not noted, it exited 0 and the current directory went back to the flow directory) | `_rules.md` used to say "`cd` to the root is denied"; it now asks the agents to stay in the flow directory as a rule (the prompts' commands and paths are relative to it) and to `cd` back if they move. Commands in `config.mk` cannot rely on a relative path once the agent has moved |
+| `Write` takes the content as a JSON string: a file written with the text `\u003c` (what JSON encoders such as Go's `encoding/json` write for `<`) contains the raw `<`, and no final newline is added unless the content ends with one (checked on 2.1.285, 2026-10-09). `git diff --no-index -- <a> <b>` exits 0 only when two files are identical, and `git diff:*` is already allowed | The agents cannot copy a file byte for byte (`cp` is not allowed). `spec.md` asks for a human or an allowed copy command when an AC needs byte equality, and the judges compare with `git diff --no-index` (#44; the checklist in §9 has a copy wrapper) |
 | Headless runs load the MCP connectors linked to the user's claude.ai account | `claude-run.sh` passes `--strict-mcp-config` so none are loaded |
 
 ### Allows that must never be granted
@@ -790,6 +791,21 @@ What to check and adapt for your repository.
         (checked on Claude Code 2.1.285: these allows let the three wrappers run, and a script in `.ai-flow/` that was not allowed was denied)
       - The relative path only works from the flow directory. The agents can `cd` elsewhere (into a module, to run its tests),
         but `_rules.md` asks them to come back before running anything else (§6, "Pitfalls found by measurement")
+- [ ] **Issues that keep real output as fixtures?** (JSON or HTML from a pipeline copied into the test data, and a test that it matches
+      byte for byte.) The agents cannot make such a copy: `cp` is not allowed, and `Write` writes escapes such as `\u003c` back as the raw
+      character (§6, "Pitfalls found by measurement"). `spec.md` then has a human run `cp` before `make impl`, or names a copy command you allow.
+      For the second, put a wrapper in `.ai-flow/` that **fixes both directories and checks the name**, and allow exactly that form,
+      e.g. `"Bash(../.ai-flow/copy-fixture.sh:*)"`:
+      ```bash
+      #!/bin/bash
+      # Copies one file of real output into the test data, byte for byte. Usage: ../.ai-flow/copy-fixture.sh <file name>
+      set -euo pipefail
+      name=$(basename -- "${1:?a file name is required}")          # no directories: ../../.env becomes .env
+      case "${name}" in *.json|*.html) ;; *) echo "copy-fixture: only .json / .html" >&2; exit 2 ;; esac
+      cp -- "../out/${name}" "../testdata/${name}"                 # paths relative to the flow directory
+      ```
+      **Never allow `cp` itself, or a wrapper that takes the source path as given**: `cp ../.env tmp/x` would get around the `.env` deny
+      (§6, "Allows that must never be granted"). Like any allowed command, this keeps accidents out, not a determined agent (§6, "Deny is not isolation")
 - [ ] **No tests?** Leave `TEST_CMD` and `SCRATCH_TEST_CMD` both empty. The plan then maps each acceptance criterion to a verification
       command (or a `manual` check with steps) instead of a test, implement runs those commands, and the judges re-run them.
       The verdict design does not change: it is still decided only by acceptance criteria numbers.
