@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-07
+
 ### Added
 
 - **`PLAN_MODEL`** ([#41](https://github.com/maepon/issue-to-pr-flow/issues/41)): the model for writing and revising the plan (plan / plan-revise),
@@ -255,7 +257,8 @@ so its history is included; Issue / PR numbers in those commit messages refer to
 - The scripts' comments and terminal / Slack messages are in Japanese (fixed in 0.3.0)
 - A project without a formatter or a test command is not supported yet: prompts that use an empty `FORMAT_*` / `TEST_CMD` value stop at render time (formatter: fixed in 0.2.0; tests: fixed in 0.4.0)
 
-[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/maepon/issue-to-pr-flow/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.7.1...v0.8.0
