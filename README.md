@@ -48,6 +48,7 @@ Notifications are optional: a Slack or Google Chat Incoming Webhook (with `curl`
 
 ## Documentation
 
+- [docs/guide.md](docs/guide.md) ([日本語](docs/guide.ja.md)) — user guide: writing Issues, reading the instruction document, what to do when it stops, reviewing the PR
 - [docs/setup.md](docs/setup.md) — setup, usage, verdict and permission design, troubleshooting, installation checklist
 - [examples/project/.ai-flow/](examples/project/.ai-flow/) — the project settings template, with comments
 - [examples/go/.ai-flow/](examples/go/.ai-flow/) — wrappers for a Go repository with several modules (tests, `gofmt`)
