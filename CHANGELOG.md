@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **A user guide** for the people who use the flow day to day, in English (`docs/guide.md`) and Japanese (`docs/guide.ja.md`):
+  writing Issues, reading the instruction document, the Issue comment types, what to do when a phase stops and how to resume,
+  and what to look at in the PR. `docs/setup.md` stays the full reference. **Host repositories** do not need to change anything
+
 ### Fixed
 
 - **An instruction document no longer asks the agents for a byte-for-byte copy they cannot make** ([#44](https://github.com/maepon/issue-to-pr-flow/issues/44)).
