@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Installation steps for a coding agent** (`docs/setup-with-agent.md`), so that asking Claude Code or a similar agent to "set up
+  issue-to-pr-flow" in a host repository goes the same way every time: what to check first, which decisions to ask the human
+  (tag, flow directory, `OUTPUT_LANG`, model IDs, notifications, …), the `git subtree` steps exactly as in §3, filling in `.ai-flow/`
+  against the §9 checklist, and when it is done. It keeps the agent out of the flow directory and away from secrets, and leaves
+  `make spec` / `make impl` to the human. English only: the agent reads it and talks to the human in their language.
+  The README's Install section points agents to it. **Host repositories** do not need to change anything
+
 ## [0.10.1] - 2026-10-09
 
 ### Added
