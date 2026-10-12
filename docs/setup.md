@@ -486,7 +486,8 @@ Each is one short run on the fast model, so the cost is small (they cannot be ch
 
 ### Allows that must never be granted
 
-`scripts/check-scripts.sh` rejects these statically.
+`scripts/check-scripts.sh` rejects these statically, as written and with a leading absolute path removed
+(`Bash(/bin/cat:*)` is rejected like `Bash(cat:*)`; §9 asks for the absolute-path forms too).
 
 - **`grep` / `cat` / `sed` / `awk` / `head` / `tail` / `cp` / `mv` / `chmod` / `curl` / `ln` / `tee` / `xargs` / `find`** —
   allowing even one general-purpose command that can read files gets around the `Read(./.env)` deny.
@@ -496,7 +497,11 @@ Each is one short run on the fast model, so the cost is small (they cannot be ch
 - **Shells and interpreters in forms that run anything in one command** — `bash` / `sh` / `zsh` / `env` / `eval` / `exec`,
   bare `python` / `node` / `npx` and the like, one-liners with `-c` / `-e` / `-p`, and `python -m:*` with nothing after it
   (`python -m http.server` would pass). **Narrowing down what runs passes**, e.g. `python -m pytest:*` or `npx prettier:*`.
-  `npm run:*` is not rejected by the check, but for the same reason spell out the script name, e.g. `npm run lint:*`
+  `npm run:*` is not rejected by the check, but for the same reason spell out the script name, e.g. `npm run lint:*`.
+  The same goes for `groovy` / `kotlin` / `scala`, and for `java` bare or with nothing after `-jar` / `-cp` / `-classpath` / `--class-path` / `--source`
+  (`java Foo.java` runs a source file); `java -jar <a fixed jar>:*` passes. **`jshell` and `jbang` are rejected in every form**: they run whatever they are given
+- **`docker` / `podman`, in every form** — they run any image with any mounts (the whole home directory, the `.env` files).
+  Services the tests need (a database, …) are started by a human before the phase, or by the tests themselves (Testcontainers and the like)
 - **`Bash(git:` / `Bash(gh:` / `Bash(*` / `Bash(:`** — too broad
 
 ### Denies required in every profile
@@ -813,12 +818,25 @@ What to check and adapt for your repository.
       command (or a `manual` check with steps) instead of a test, implement runs those commands, and the judges re-run them.
       The verdict design does not change: it is still decided only by acceptance criteria numbers.
       **Allow the commands you expect to verify with** (your build, a script that renders the docs, ...) in `.ai-flow/permissions.json`
-- [ ] **`TEST_CMD`** — **if your test tool caches results, add the flag that disables it** (Go `-count=1`, Gradle `--rerun-tasks`,
+- [ ] **`TEST_CMD`** — **if your test tool caches results, add the flag that disables it** (Go `-count=1`, Gradle `test --rerun` (7.6 or later) or `cleanTest test`,
       Turborepo `--force`, Nx `--skip-nx-cache`, Bazel `--nocache_test_results`).
       The judges re-run the tests to verify claims, so a replayed earlier success defeats them.
-      pytest and Jest do not replay results, so nothing is needed for them
+      Gradle's `--rerun-tasks` works too, but reruns every task, compilation included, which makes each run slower.
+      pytest, Jest, and Maven (Surefire) do not replay results, so nothing is needed for them
+- [ ] **How long does `TEST_CMD` take?** Time it from the flow directory. Claude Code stops a Bash command after 2 minutes by default
+      and 10 minutes at most (`BASH_DEFAULT_TIMEOUT_MS` / `BASH_MAX_TIMEOUT_MS`), and the judges re-run the whole suite.
+      A suite that takes several minutes (common with tests that start an application context or containers) needs those limits raised
+      in the environment `make` runs in (not yet measured with this flow); one that takes longer than the maximum cannot be verified at all.
+      Allow `TEST_CMD` as a prefix (`"Bash(../gradlew -p .. test:*)"`) so the agents can narrow a run to one test class or file while they work
+- [ ] **Toolchains set up in `.zshrc`?** (SDKMAN, jenv, nvm, pyenv, …) The same caveat as the model IDs applies (§2, Models):
+      a non-interactive shell does not read `.zshrc`, so the commands in `config.mk` may not find the right version, or any.
+      Put the setup in `.zshenv`, or pin the version in the build (a Gradle toolchain, `.nvmrc` read by a wrapper, …)
+- [ ] **Commands that do not finish** — do not allow commands that start a server and keep running (`npm start`, a dev server,
+      Gradle `bootRun`, Maven `spring-boot:run`, …): the Bash command times out, and the server may need services the agents cannot start.
+      Say in `.ai-flow/context.md` that behavior is checked through tests (for a web application, tests that call the endpoints in process)
 - [ ] **Secret files other than `.env`** — every `.env` is already denied. If your project keeps secrets in other files, add them to `deny`
-      in `.ai-flow/permissions.json` as `Read(//**/<path>)` (e.g. `Read(//**/config/secrets.yml)`); a relative path would only match under the flow directory
+      in `.ai-flow/permissions.json` as `Read(//**/<path>)` (e.g. `Read(//**/config/secrets.yml)`, or `Read(//**/application-local.yml)` for local Spring Boot settings with database passwords);
+      a relative path would only match under the flow directory
 - [ ] **`.ai-flow/permissions.json`** — allows for build, test, and format commands.
       **Also add the absolute-path forms** found with `which` (agents sometimes call commands by absolute path)
 - [ ] **`.ai-flow/context.md`** — documents to read (conventions, README, …), documents to update,
