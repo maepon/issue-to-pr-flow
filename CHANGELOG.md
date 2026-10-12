@@ -10,6 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`examples/java/.ai-flow/`**: settings for a Java repository built with Gradle or Maven — `config.mk`, `permissions.json`, `context.md`,
+  `project-words.txt` — and `java-scratch.sh` for `SCRATCH_TEST_CMD`. A throwaway file under the flow's `tmp/` is outside every source set,
+  so the wrapper compiles the project, asks the build for the test runtime classpath (an init script for Gradle, `dependency:build-classpath`
+  for Maven; the build files stay unchanged), and runs the file in source-file mode. `MODULE` picks a subproject or module.
+  Checked by hand with Spring Boot 4.1 on Gradle 9.7 (also with the configuration cache) and Maven, single and multi-module;
+  `selftest.sh` covers the wrapper's plumbing with stub builds. The formatter settings are left empty and only described (not checked yet).
+  setup.md §9 has an item on `SCRATCH_TEST_CMD` for compiled languages
 - **Checklist items in `docs/setup.md` §9 for slower, compiled stacks** such as Java / Spring Boot: timing `TEST_CMD` against Claude Code's
   Bash timeout (2 minutes by default, 10 at most) since the judges re-run the whole suite, allowing it as a prefix so the agents can run one test class,
   toolchains set up only in `.zshrc` (SDKMAN, jenv, …), commands that never finish (dev servers, `bootRun`), and `application-local.yml` as an example

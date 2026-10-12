@@ -56,6 +56,7 @@ Notifications are optional: a Slack or Google Chat Incoming Webhook (with `curl`
 - [docs/setup.md](docs/setup.md) — setup, usage, verdict and permission design, troubleshooting, installation checklist
 - [examples/project/.ai-flow/](examples/project/.ai-flow/) — the project settings template, with comments
 - [examples/go/.ai-flow/](examples/go/.ai-flow/) — wrappers for a Go repository with several modules (tests, `gofmt`)
+- [examples/java/.ai-flow/](examples/java/.ai-flow/) — settings for a Java repository built with Gradle or Maven (checked with Spring Boot), with a wrapper for throwaway checks
 
 ## Developing this repository
 
