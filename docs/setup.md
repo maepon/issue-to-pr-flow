@@ -327,6 +327,7 @@ and delete `tmp/cost-issue<N>.txt` afterwards.
 | `make pr-review ISSUE=n` | Argues against the PR (Devil's Advocate). Not part of the main flow | A comment on the PR |
 | `make create-pr ISSUE=n` | Retries only the push and PR creation (`create_pr`) | A PR exists |
 | `make check` | Static checks and the regression tests (`scripts/selftest.sh`); runs automatically before each phase | — |
+| `make probe` | Re-checks the Claude Code behaviors in §6 "Pitfalls found by measurement". Costs about $0.20; run it when `claude --version` goes up | A list of results |
 
 Run `review` on its own after `impl` stopped without converging and you fixed things by hand.
 `code-review` on its own is for when the PR exists but posting failed.
@@ -460,12 +461,11 @@ The details are also kept in the comment at the top of `scripts/claude-run.sh`.
 
 **These are measurements against particular versions, not Claude Code's specification.** The version at the time of measurement was not recorded;
 the last time they were checked against this table was 2.1.243 (2026-09-24). They may change as versions move,
-so note `claude --version` when you install, and when it goes up re-check at least these two.
-Each is one short run on the fast model, so the cost is small (they cannot be checked without cost).
-
-- With a profile that allows only `Write(tmp/**)`, ask it to "write one line to `tmp/x.txt`" and see whether it is denied
-  (if it now passes, write ranges can be restricted by permissions)
-- Pass a profile named `.claude/settings.json` with `--settings` and see whether its allow takes effect
+so note `claude --version` when you install, and when it goes up run **`make probe`** (`scripts/probe.sh`).
+It re-checks most of these in throwaway repositories, with six short runs on a cheap model (about $0.20; they cannot be checked without cost),
+and prints for each item whether it still holds. It exits with 1 when an assumption the safety relies on no longer holds,
+and with 2 when an item could not be determined (the model did not make the call as asked; re-run it).
+It does not touch your repository, but settings at the user level (`~/.claude`) still apply, as they do in the flow.
 
 | Behavior | What it means |
 |---|---|
@@ -602,6 +602,7 @@ scripts/
   selftest.sh                        Regression tests for run-phase.sh functions and render-prompt.sh (called by check-scripts.sh;
                                      gh / npx / claude / curl are stubbed; runs throwaway repositories with the flow at ai-flow/ and tools/ai.flow/)
   ci-check.sh                        Runs make check in this repository by laying files out like a host repository (local and CI)
+  probe.sh                           Re-checks the measured Claude Code behaviors in throwaway repositories (make probe; costs money)
   resign-subtree-merge.sh            Signs the commits git subtree add / merge --squash created, keeping their trees (§3)
   notify-slack.sh                    Slack notification (the default NOTIFY_CMD when SLACK_WEBHOOK_URL is set)
   notify-google-chat.sh              Google Chat notification (the default NOTIFY_CMD when only GOOGLE_CHAT_WEBHOOK_URL is set)
