@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-12
+
 ### Added
 
 - **`examples/java/.ai-flow/`**: settings for a Java repository built with Gradle or Maven — `config.mk`, `permissions.json`, `context.md`,
@@ -311,7 +313,8 @@ so its history is included; Issue / PR numbers in those commit messages refer to
 - The scripts' comments and terminal / Slack messages are in Japanese (fixed in 0.3.0)
 - A project without a formatter or a test command is not supported yet: prompts that use an empty `FORMAT_*` / `TEST_CMD` value stop at render time (formatter: fixed in 0.2.0; tests: fixed in 0.4.0)
 
-[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/maepon/issue-to-pr-flow/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/maepon/issue-to-pr-flow/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.9.0...v0.10.0
