@@ -4,7 +4,7 @@
 
 This guide is for the people who **use** the flow day to day: writing Issues, reading what the agents post, deciding what to do
 when it stops, and reviewing the PR it opens. You do not need to know how the scripts work.
-Installing the flow and the design behind it are covered in [setup.md](setup.md).
+Installing the flow and the design behind it are covered in [setup.md](setup.md); to have a coding agent install it, see [setup-with-agent.md](setup-with-agent.md).
 
 ---
 

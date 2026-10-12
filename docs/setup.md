@@ -2,6 +2,7 @@
 
 This guide covers installing the flow into a repository and running it day to day.
 For a short overview, see the [README](../README.md); for day-to-day use (writing Issues, reading what the agents post, resuming), see the [user guide](guide.md) ([日本語](guide.ja.md)).
+To have a coding agent install the flow, point it to [setup-with-agent.md](setup-with-agent.md).
 
 ---
 
@@ -621,6 +622,7 @@ prompts/
 docs/
   setup.md                           This guide
   guide.md / guide.ja.md             User guide for day-to-day use (English / Japanese)
+  setup-with-agent.md                Installation steps for a coding agent (§3 and §9, in order, with what to ask the human)
 
 examples/project/.ai-flow/           Template for project settings (copy to your repository root)
 examples/go/.ai-flow/                Wrappers for Go with several modules: go-test.sh, gofmt-check.sh, gofmt-file.sh (§9)
