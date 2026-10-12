@@ -450,39 +450,79 @@ The permissions given to the agents are defined by the profiles in `.claude/`.
 These only contain commands every project uses. Project-specific commands such as tests and formatting go in the `allow` of `.ai-flow/permissions.json`.
 Each time `claude-run.sh` starts claude, `scripts/merge-permissions.sh` adds them to the profile, writes the result to a temporary file,
 and passes it with `--settings` (rules with a `./` prefix such as `Read(./.env)` resolve relative to the current directory,
-not the settings file's location, so they still work from a temporary file).
+not the settings file's location, so they still work from a temporary file; B5 below).
 The merged result is not kept in `tmp/` or elsewhere because an agent could rewrite it to widen the permissions of the next step.
 `check-scripts.sh` checks the permissions after merging, for all three profiles.
 
 ### Pitfalls found by measurement
 
 These are counter-intuitive, so **read them before editing a profile.**
-The details are also kept in the comment at the top of `scripts/claude-run.sh`.
+The comment at the top of `scripts/claude-run.sh` keeps a short version, by ID.
 
-**These are measurements against particular versions, not Claude Code's specification.** The version at the time of measurement was not recorded;
-the last time they were checked against this table was 2.1.243 (2026-09-24). They may change as versions move,
-so note `claude --version` when you install, and when it goes up run **`make probe`** (`scripts/probe.sh`).
-It re-checks most of these in throwaway repositories, with six short runs on a cheap model (about $0.20; they cannot be checked without cost),
-and prints for each item whether it still holds. It exits with 1 when an assumption the safety relies on no longer holds,
+**These are measurements against particular versions, not Claude Code's specification.**
+**Unless a row says otherwise, every row was last checked with `make probe` on 2.1.287 (2026-10-12).**
+They may change as versions move, so note `claude --version` when you install, and when it goes up run **`make probe`** (`scripts/probe.sh`).
+It re-checks the rows in throwaway repositories, with six short runs on a cheap model (about $0.20; they cannot be checked without cost),
+and prints for each ID whether it still holds. It exits with 1 when an assumption the safety relies on (B) no longer holds,
 and with 2 when an item could not be determined (the model did not make the call as asked; re-run it).
 It does not touch your repository, but settings at the user level (`~/.claude`) still apply, as they do in the flow.
+After a run, update the version and date above (and the rows whose result changed).
 
-| Behavior | What it means |
-|---|---|
-| With the **name** `.claude/settings.json`, `permissions.allow` is ignored entirely when the workspace is not trusted, even when passed explicitly with `--settings` (only a warning on stderr; exit code 0) | **Do not use this name.** It silently runs with no permissions |
-| With any other file name, both allow and deny work | Why the profiles are named `*-permissions.json` |
-| A `deny` in `settings.json` **also binds the human's interactive sessions** (deny blocks without a prompt) | You could no longer commit / push yourself |
-| `Write` / `Edit` **rules with a path never match, in allow or deny** (`Write(./**)`, `Write(**)`, `Write(tmp/**)`, absolute forms were all denied) | Only bare `Write` / `Edit` can be granted. **Write ranges are restricted by the shell's working tree check instead** |
-| Paths work for `Read`. `deny Read(./.env)` beats a bare `allow Read` | `.env` can be blocked |
-| A relative pattern (`Read(./.env)`, `Read(.env)`) only matches at or under the current directory (the flow directory), not the project root above it. `Read(//**/.env)` matches a file named `.env` anywhere | Every profile denies both. The root `.env` went from readable to denied, and `.env.example` stayed readable. Protect other secret files with `Read(//**/<path>)` in `.ai-flow/permissions.json` |
-| A deny in the colon form is a **prefix match** and beats an allow of the base command too | A `Bash(gh pr:*)` deny blocks both `gh pr comment` and `gh pr create` |
-| Claude Code itself blocks writes under `.claude/` | Agents cannot widen their own permissions. `prompts/` and `scripts/` are not covered, though |
-| Blocks by deny do **not** appear in `permission_denials`; they come back as tool errors | Some denials do not show up in the list |
-| Even when a tool call is denied, `claude` exits with **0** | `claude-run.sh` reads `permission_denials` and prints them to stderr |
-| With the flow directory as the current directory, Bash commands whose arguments point outside it (`git diff -- ../README.md`) are denied, while `Read` / `Write` / `Edit` reach those files | `claude-run.sh` passes `--add-dir=<repository root>`. Use the `=` form: `--add-dir` takes several values and would swallow the prompt |
-| With `--add-dir=<repository root>`, `cd` to the root or to a subdirectory is **not** denied, and the new current directory **persists** across calls (Claude Code also moves its "Primary working directory"). `cd` outside the repository is denied, naming the two allowed directories (checked on 2.1.285, 2026-10-06; in the trial recorded in #29, whose version was not noted, it exited 0 and the current directory went back to the flow directory) | `_rules.md` used to say "`cd` to the root is denied"; it now asks the agents to stay in the flow directory as a rule (the prompts' commands and paths are relative to it) and to `cd` back if they move. Commands in `config.mk` cannot rely on a relative path once the agent has moved |
-| `Write` takes the content as a JSON string: a file written with the text `\u003c` (what JSON encoders such as Go's `encoding/json` write for `<`) contains the raw `<`, and no final newline is added unless the content ends with one (checked on 2.1.285, 2026-10-09). `git diff --no-index -- <a> <b>` exits 0 only when two files are identical, and `git diff:*` is already allowed | The agents cannot copy a file byte for byte (`cp` is not allowed). `spec.md` asks for a human or an allowed copy command when an AC needs byte equality, and the judges compare with `git diff --no-index` (#44; the checklist in §9 has a copy wrapper) |
-| Headless runs load the MCP connectors linked to the user's claude.ai account | `claude-run.sh` passes `--strict-mcp-config` so none are loaded |
+The rows come in two kinds.
+
+- **A — a workaround for a Claude Code behavior.** If `make probe` says it no longer holds, the workaround may be removable;
+  the last column says where. Removing it is optional: host repositories may still run an older Claude Code, where it is still needed
+- **B — an assumption the safety relies on.** If it no longer holds, the safety is weaker than this document says.
+  `make probe` exits with 1; **do not run the flow until the last column has been dealt with**
+
+Workarounds for other tools (bash 3.2, `git`, `gh`) and the defense in depth ("Deny is not isolation" below, §10) are not listed here:
+they stay whether or not the behavior that prompted them changes.
+
+#### A. Workarounds
+
+| ID | Behavior | Relied on in | If it no longer holds |
+|---|---|---|---|
+| A1 | **Some compound forms are refused even when every part is allowed:** `VAR=value cmd` prefixes, command substitution (`$(…)`), control structures that expand a variable (`for … do cmd $i; done`), and output redirection (`>`, even inside the working directories). `&&`, `;`, pipes, heredocs, `2>&1` and `cd X && cmd` **pass** when every part is allowed (they were refused on earlier versions, and pass since at least 2.1.286). Each part is still checked (B7) | `_rules.md` "How to write shell commands"; §7 "Notes for editing prompts" | Remove the form from the list in `_rules.md`. If a form that passes is refused again, add it back: agents that keep getting denied spin |
+| A2 | With `--add-dir=<repository root>`, `cd` to the root or to a subdirectory passes, and the new current directory **persists** across calls (Claude Code also moves its "Primary working directory"; on 2.1.285 and later. In the trial recorded in #29, whose version was not noted, the current directory went back to the flow directory) | `_rules.md` "Working directory and commands" (stay in the flow directory; `cd` back after moving). Commands in `config.mk` cannot rely on a relative path once the agent has moved | If the move no longer persists, the "`cd` back" instruction can go |
+| A3 | `Write` takes the content as a JSON string: a file written with the text `\u003c` (what JSON encoders such as Go's `encoding/json` write for `<`) contains the raw `<`, and no final newline is added unless the content ends with one. **It also depends on the model**, so `make probe` reports it for reference only. `git diff --no-index -- <a> <b>` exits 0 only when two files are identical, and `git diff:*` is already allowed | `spec.md` (an AC that needs byte equality asks for a human or an allowed copy command), `review-judge.md` (compares with `git diff --no-index`), the copy wrapper in §9 (#44) | The instruction in `spec.md` can be relaxed |
+| A4 | `Write` / `Edit` **rules with a path never match, in allow or deny** (`Write(./**)`, `Write(**)`, `Write(tmp/**)` and absolute forms were all denied; `make probe` checks `Write(tmp/**)`) | Only bare `Write` / `Edit` are granted (the `//write` comments in the profiles). **Write ranges are restricted by the shell's working tree check instead** | A path restriction can be added **as an extra layer**. The working tree check stays (§10) |
+| A5a | **No longer holds (2.1.286 and later).** Blocks by deny used to be missing from `permission_denials` and came back only as tool errors (until at least 2.1.243); they now appear there too | `claude-run.sh` reads `permission_denials` (§8) | Nothing to change: the warnings now include blocks by deny |
+| A5b | Even when a tool call is denied, `claude` exits with **0** | `claude-run.sh` reads `permission_denials` and prints them to stderr (§8) | The exit code could be used to notice denials, but reading `permission_denials` keeps working either way |
+| A6 | **No longer holds (2.1.287).** With the **name** `.claude/settings.json`, `permissions.allow` used to be ignored entirely when the workspace was not trusted, even when passed explicitly with `--settings` (only a warning on stderr; exit code 0). With any other file name, both allow and deny work | One of the two reasons the profiles are named `*-permissions.json` (§10) | The naming rule stays: A7 still holds, and hosts may run an older version |
+| A7 | A `deny` in the project's `.claude/settings.json` **also binds sessions that do not pass it**, including the human's interactive sessions (deny blocks without a prompt). `make probe` checks a stand-in (`claude -p` without `--settings`); the interactive case is checked by hand (below) | Why the profiles are not named `settings.json` (§10): you could no longer commit / push yourself | If A6 no longer holds either, the naming rule has no reason left (keeping it costs nothing) |
+| A8 | A relative pattern (`Read(./.env)`, `Read(.env)`) only matches at or under the current directory (the flow directory), not the project root above it. `Read(//**/.env)` matches a file named `.env` anywhere | Every profile denies both (the `//env` comments; "Denies required in every profile" below). Protect other secret files with `Read(//**/<path>)` in `.ai-flow/permissions.json` | If relative patterns match above the current directory, `Read(//**/.env)` could go. Keeping both does no harm |
+| A9 | With the flow directory as the current directory, Bash commands whose arguments point outside it (`git diff -- ../README.md`) are denied, while `Read` / `Write` / `Edit` reach those files | `claude-run.sh` passes `--add-dir=<repository root>` | `--add-dir` could go (look at A2 and B4 together) |
+| A10 | `--add-dir` takes several values: separated by a space, it swallows the prompt that follows (checked without a model call) | `claude-run.sh` uses the `=` form | The note can go (the `=` form does no harm) |
+| A11 | Without `< /dev/null`, `claude -p` waits 3 s for standard input ("no stdin data received in 3s"). Not probed: it is kept anyway | `claude-run.sh` | — |
+
+`claude-run.sh` also passes `--strict-mcp-config`, because headless runs load the MCP connectors linked to the user's claude.ai account
+(their tool descriptions were added to every step's prompt). It is not probed: the flow uses no MCP servers, so it is kept anyway.
+
+#### B. Assumptions the safety relies on
+
+| ID | Behavior | What it protects | If it no longer holds |
+|---|---|---|---|
+| B1 | Claude Code itself blocks writes under `.claude/` (refused as a "sensitive file") | Agents cannot widen their own permissions ("Deny is not isolation" below, safeguard 1). `prompts/` and `scripts/` are not covered, so the working tree check covers them | Agents can rewrite the profiles in `.claude/`. The working tree check still aborts after the step, but the step itself is unprotected: stop and look for another way to keep the profiles out of reach |
+| B2 | `deny Read(./.env)` beats a bare `allow Read` | `.env` cannot be read with `Read` | `.env` becomes readable. Remove the bare `Read` and allow paths instead |
+| B3 | A deny in the colon form is a **prefix match** and beats an allow of the base command too (`Bash(gh pr:*)` blocks both `gh pr comment` and `gh pr create`) | The `git push` / `gh pr` / `rm` / … denies (the `//deny` / `//pr` comments) | The denies leak through longer forms. `push` and `gh pr` are still never granted (§10), but review every allow |
+| B4 | Even with `--add-dir=<repository root>`, `cd` outside the repository is refused, naming the allowed directories | The agents stay inside the repository | Agents can move anywhere: say so in `_rules.md` and look at `--add-dir` again (A9) |
+| B5 | Rules with a `./` prefix resolve relative to the **current directory**, not the settings file's location | The merged profile is written to a temporary file and passed with `--settings`, and `Read(./.env)` still means the flow's `.env` | **`Read(./.env)` stops working silently.** `Read(//**/.env)` still blocks it, but other `./` rules in `.ai-flow/permissions.json` need rewriting |
+| B6 | A deny in the profile beats an allow from another settings source, such as a user-level `Bash(git push *)`. `make probe` checks a stand-in (an allow in `.claude/settings.local.json`, since changing `~/.claude` could break the login); the user-level case is checked by hand (below) | The `//deny` of `commit-permissions.json` | An allow in the user's own settings reaches the agents. Remove it from the user settings, or run the flow with a separate `CLAUDE_CONFIG_DIR` |
+| B7 | A compound command is checked **part by part**: in `./allowed && ./not-allowed`, the second part is refused | Relaxing A1 in `_rules.md` | **Anything can run after an allowed command.** Restore the "one simple command per call" rule in `_rules.md` and treat every allow as granting everything |
+| B8 | Input redirection is checked against the `Read` denies: `./allowed < ./.env` is refused | `.env` cannot be read through an allowed command | `.env` becomes readable through any allowed command that reads its standard input |
+
+#### Checks `make probe` cannot do
+
+Run these by hand when `make probe` shows a change in A7 or B6, or once after installing. Use a scratch repository, not a real one.
+
+- **A7 in an interactive session.** Put `.claude/settings.json` with `{"permissions": {"deny": ["Bash(git status:*)"]}}` in a scratch repository,
+  start `claude` there (trust the folder when asked), and ask it to run `git status`. It holds if the call is refused without asking you.
+  Delete the file afterwards
+- **B6 with user-level settings.** Add `Bash(touch:*)` to `permissions.allow` in your `~/.claude/settings.json` for the check
+  (a command that changes files, so Claude Code does not allow it on its own; read-only commands such as `git log` may pass whatever the rules say).
+  Write a profile that denies it (`{"permissions": {"allow": ["Read"], "deny": ["Bash(touch:*)"]}}`), and in a scratch repository run
+  `claude -p --settings <profile> --output-format json "Run touch b6.txt"`. It holds if the call shows in `permission_denials` and `b6.txt` was not created.
+  Remove the allow from `~/.claude/settings.json` afterwards
 
 ### Allows that must never be granted
 
@@ -690,12 +730,11 @@ If explanations or decoration get mixed in, `make` cannot proceed and stops wait
   without it still render, and give the alternative in `{{#unless …}}` when one is needed (as the test / verification wording does).
   Keep numbered steps outside the block so the numbering has no gaps when it is removed
 - **`prompts/_rules.md` applies to every phase.** Anything added there is paid for on every step
-- **An agent can run only one command per call.** Compound commands (`cd X && cmd`, `cmd1; cmd2`,
-  control structures, `VAR=value cmd` prefixes, command substitution, pipes, heredocs) are **denied even when the command is allowed.**
-  `cd` is allowed and the current directory persists across calls, so they run it in two calls.
-  `cd` to the root is not blocked either (§6, "Pitfalls found by measurement"); `_rules.md` asks the agents to stay in the flow directory
-  because the commands and paths in the prompts are written relative to it, and to `cd` back if they move.
-  Without this guidance in `_rules.md`, agents keep getting denied and spin
+- **Some shell forms are denied even when every command in them is allowed** (§6, A1): `VAR=value cmd` prefixes, command substitution,
+  control structures that expand a variable, and output redirection. `&&`, `;`, pipes and heredocs pass when every part is allowed
+  (each part is checked: B7). `_rules.md` lists the denied forms; without this guidance, agents keep getting denied and spin.
+  `cd` is allowed and the current directory persists across calls; `cd` to the root is not blocked either (A2), so `_rules.md` asks the agents
+  to stay in the flow directory because the commands and paths in the prompts are written relative to it, and to `cd` back if they move
 - **`cp` is not allowed** (`cp ./.env /tmp/x` would get around the `Read(./.env)` deny).
   Agents create test input files with the `Write` tool
 
@@ -766,7 +805,9 @@ Warning: 3 disallowed tool call(s) were denied.
 it is printed so a human notices. **Add only the ones that recur** to `allow` in `.ai-flow/permissions.json`
 (while respecting "Allows that must never be granted" in §6).
 
-Denials of compound commands like the example above come from **insufficient guidance in `prompts/_rules.md`, not from permissions.**
+Denials of shell forms that are refused whatever the permissions say (§6, A1) come from **insufficient guidance in `prompts/_rules.md`,
+not from permissions.** The example above was denied on versions before 2.1.286; it passes now when both parts are allowed.
+Denials by a `deny` rule appear in the list too (2.1.286 and later; A5a).
 
 ---
 
@@ -893,7 +934,7 @@ Things that tend to get cut because "it looks easy", and that **silently** stop 
 | **The cost log is appended** | Truncating on each start erases the first half of `make impl` → `make review`, and the notified total comes out lower than reality |
 | **The notification secrets (`NOTIFY_SECRET_VARS`) are removed with `env -u`, and one list drives both export and removal** | The `Makefile` exports them for `NOTIFY_CMD`, so otherwise `echo` could read them and the `Read(./.env)` deny would be pointless. Two separate lists would drift: a secret exported but not removed reaches the agents silently |
 | **Variables in error messages are written `${x}`** | bash 3.2 takes the first byte of a non-ASCII character into the variable name. **It happens inside error messages, so it only breaks when something fails** (`check-scripts.sh` checks statically) |
-| **Permission files are not named `settings.json`** | When the workspace is not trusted, `permissions.allow` is silently ignored, and `deny` binds the human's interactive sessions too |
+| **Permission files are not named `settings.json`** | A `deny` in `settings.json` binds the human's interactive sessions too (§6, A7). On versions before 2.1.287, `permissions.allow` was also silently ignored when the workspace was not trusted (A6) |
 | **`grep` / `cat` / `sed` / `cp` / `git -C` are not allowed** | `grep` / `cat` / `sed` / `cp` can read files and get around the `Read(./.env)` deny; `git -C` shifts the prefix match and gets around the `git push` deny |
 | **The flow lives in a subdirectory, and its whole directory is tooling** | At the root, the flow's files and the project's files of the same name cannot be told apart. Listing tooling files by name leaks whatever is added to the flow later (README, examples) |
 | **Phase prompts are rendered by the shell and passed to `claude -p`; they are not Claude Code skills** | The flow is deterministic on purpose: the same settings always produce the same prompt text, unfilled placeholders and conditional blocks fail before any cost, and the human gate, the tooling check, and push / PR creation are enforced by the shell. Skills are loaded at the model's discretion from static Markdown, so moving the phases into skills would give up render-time validation and guaranteed loading, and a skill invoked from an interactive session would bypass every check in `run-phase.sh`. Helpers for the human steps outside the pipeline (drafting an Issue, reading why a phase stopped) could be skills; the phases themselves should not |
