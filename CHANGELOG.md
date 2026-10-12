@@ -8,6 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`make probe`** (`scripts/probe.sh`): re-checks the Claude Code behaviors that docs/setup.md §6 "Pitfalls found by measurement"
+  relies on or works around, in throwaway git repositories, with six short runs on a cheap model (`PROBE_MODEL`, default `haiku`; about $0.20).
+  The shell judges each item from the tool calls and their results, logs written by the fixture's scripts, files on disk and
+  `permission_denials`, not from the agent's reply; a call not made exactly as asked makes the item undetermined.
+  Exits with 1 when a safety assumption no longer holds and 2 when an item is undetermined. Not part of `make check` (#47).
+  On 2.1.287 every safety assumption held; some workarounds no longer seem needed (some compound command forms pass,
+  refusals by deny now appear in `permission_denials`, an allow in a profile named `settings.json` takes effect). The docs and
+  `_rules.md` are not changed yet
+
 ## [0.11.0] - 2026-10-12
 
 ### Added
