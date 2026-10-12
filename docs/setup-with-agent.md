@@ -104,6 +104,8 @@ the checklist in setup.md §9 ("Must do") is the authority. The points agents mo
 - **Never put a command that keeps running** (a dev server, `bootRun`, `spring-boot:run`, …) in `config.mk` or `permissions.json`.
 - **`FORMAT_FILE_CMD` checks, never formats**, and exits 0 when the file is formatted. For tools that answer through their output
   (`gofmt -l`), use a wrapper. No formatter: leave all four `FORMAT_*` empty.
+- **Java (Gradle or Maven)**: start from `examples/java/.ai-flow/` (`cp ai-flow/examples/java/.ai-flow/* .ai-flow/` after copying the template),
+  then adjust the build tool, `MODULE` in `java-scratch.sh` for a multi-module build, and the formatter.
 - **More than one module or package** with no single command from the flow directory: copy the wrappers into `.ai-flow/`
   (`examples/go/.ai-flow/` for Go) and call them by a path relative to the flow directory (setup.md §9).
 - **`permissions.json`** — allow exactly the commands in `config.mk` and the version checks you need, plus their absolute-path forms

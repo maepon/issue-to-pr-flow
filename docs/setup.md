@@ -631,6 +631,8 @@ docs/
 
 examples/project/.ai-flow/           Template for project settings (copy to your repository root)
 examples/go/.ai-flow/                Wrappers for Go with several modules: go-test.sh, gofmt-check.sh, gofmt-file.sh (§9)
+examples/java/.ai-flow/              Settings for Java (Gradle / Maven): config.mk, permissions.json, context.md, project-words.txt,
+                                     java-scratch.sh + scratch-classpath.gradle for SCRATCH_TEST_CMD (§9)
 
 .github/workflows/check.yml          CI for this repository (inert inside a host repository)
 
@@ -814,6 +816,11 @@ What to check and adapt for your repository.
       ```
       **Never allow `cp` itself, or a wrapper that takes the source path as given**: `cp ../.env tmp/x` would get around the `.env` deny
       (§6, "Allows that must never be granted"). Like any allowed command, this keeps accidents out, not a determined agent (§6, "Deny is not isolation")
+- [ ] **Can `SCRATCH_TEST_CMD` run a file under the flow's `tmp/`?** The agents write throwaway checks there and pass the file to it.
+      Interpreted languages run the file directly; for a compiled language the file is outside every source set, so the build tool cannot run it.
+      Java: `examples/java/.ai-flow/java-scratch.sh` compiles the project, asks Gradle or Maven for the test classpath, and runs the file
+      in source-file mode (checked with Spring Boot on Gradle 9.7 and Maven, single and multi-module). Copy the whole directory over the template:
+      `cp ai-flow/examples/java/.ai-flow/* .ai-flow/`. With tests configured, `SCRATCH_TEST_CMD` cannot be left empty (the prompts stop rendering)
 - [ ] **No tests?** Leave `TEST_CMD` and `SCRATCH_TEST_CMD` both empty. The plan then maps each acceptance criterion to a verification
       command (or a `manual` check with steps) instead of a test, implement runs those commands, and the judges re-run them.
       The verdict design does not change: it is still decided only by acceptance criteria numbers.
