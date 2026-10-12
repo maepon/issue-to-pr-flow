@@ -327,7 +327,7 @@ and delete `tmp/cost-issue<N>.txt` afterwards.
 | `make pr-review ISSUE=n` | Argues against the PR (Devil's Advocate). Not part of the main flow | A comment on the PR |
 | `make create-pr ISSUE=n` | Retries only the push and PR creation (`create_pr`) | A PR exists |
 | `make check` | Static checks and the regression tests (`scripts/selftest.sh`); runs automatically before each phase | — |
-| `make probe` | Re-checks the Claude Code behaviors in §6 "Pitfalls found by measurement". Costs about $0.20; run it when `claude --version` goes up | A list of results |
+| `make probe` | Re-checks the Claude Code behaviors in §6 "Pitfalls found by measurement". Costs about $0.25; run it when `claude --version` goes up | A list of results |
 
 Run `review` on its own after `impl` stopped without converging and you fixed things by hand.
 `code-review` on its own is for when the PR exists but posting failed.
@@ -462,7 +462,7 @@ The comment at the top of `scripts/claude-run.sh` keeps a short version, by ID.
 **These are measurements against particular versions, not Claude Code's specification.**
 **Unless a row says otherwise, every row was last checked with `make probe` on 2.1.287 (2026-10-12).**
 They may change as versions move, so note `claude --version` when you install, and when it goes up run **`make probe`** (`scripts/probe.sh`).
-It re-checks the rows in throwaway repositories, with six short runs on a cheap model (about $0.20; they cannot be checked without cost),
+It re-checks the rows in throwaway repositories, with six short runs on a cheap model (about $0.25; they cannot be checked without cost),
 and prints for each ID whether it still holds. It exits with 1 when an assumption the safety relies on (B) no longer holds,
 and with 2 when an item could not be determined (the model did not make the call as asked; re-run it).
 It does not touch your repository, but settings at the user level (`~/.claude`) still apply, as they do in the flow.
@@ -510,6 +510,7 @@ they stay whether or not the behavior that prompted them changes.
 | B6 | A deny in the profile beats an allow from another settings source, such as a user-level `Bash(git push *)`. `make probe` checks a stand-in (an allow in `.claude/settings.local.json`, since changing `~/.claude` could break the login); the user-level case is checked by hand (below) | The `//deny` of `commit-permissions.json` | An allow in the user's own settings reaches the agents. Remove it from the user settings, or run the flow with a separate `CLAUDE_CONFIG_DIR` |
 | B7 | A compound command is checked **part by part**: in `./allowed && ./not-allowed`, the second part is refused | Relaxing A1 in `_rules.md` | **Anything can run after an allowed command.** Restore the "one simple command per call" rule in `_rules.md` and treat every allow as granting everything |
 | B8 | Input redirection is checked against the `Read` denies: `./allowed < ./.env` is refused | `.env` cannot be read through an allowed command | `.env` becomes readable through any allowed command that reads its standard input |
+| B9 | Commands that Claude Code allows on its own as read-only (`tail`, `cat`, `head`, `grep`: they pass without being in `allow`, e.g. after a pipe) are checked against the `Read` denies: `tail ./.env`, `cat ./.env` and `tail ../.env` are refused | `.env` cannot be read with a command nobody allowed | `.env` becomes readable with `cat`. The rule against allowing these commands ("Allows that must never be granted" below) stays either way: an explicit allow is not probed |
 
 #### Checks `make probe` cannot do
 
