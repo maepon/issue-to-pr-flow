@@ -8,6 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Checklist items in `docs/setup.md` §9 for slower, compiled stacks** such as Java / Spring Boot: timing `TEST_CMD` against Claude Code's
+  Bash timeout (2 minutes by default, 10 at most) since the judges re-run the whole suite, allowing it as a prefix so the agents can run one test class,
+  toolchains set up only in `.zshrc` (SDKMAN, jenv, …), commands that never finish (dev servers, `bootRun`), and `application-local.yml` as an example
+  of a secret file to deny. `docs/setup-with-agent.md` has the agent time `TEST_CMD` and report it
+
+### Changed
+
+- **`make check` rejects more allows** in the merged permissions: `java` bare or with nothing after `-jar` / `-cp` / `--source`
+  (`java Foo.java` runs a source file; `java -jar <a fixed jar>:*` still passes), `jshell` and `jbang` in every form, `groovy` / `kotlin` / `scala`
+  like the other interpreters, and `docker` / `podman` in every form (any image, any mounts). **Absolute-path forms are now checked too**:
+  `Bash(/bin/cat:*)` used to pass while `Bash(cat:*)` was rejected, although §9 asks for the absolute-path forms of allowed commands.
+  **Host repositories**: if `make check` now reports one of these in `.ai-flow/permissions.json`, narrow it to what you need or remove it
+  (setup.md §6, "Allows that must never be granted")
+- **Gradle's cache advice** in setup.md §9: `test --rerun` (7.6 or later) or `cleanTest test` instead of `--rerun-tasks`, which also reruns compilation
+
 ## [0.10.2] - 2026-10-12
 
 ### Added

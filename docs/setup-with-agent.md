@@ -97,13 +97,17 @@ the checklist in setup.md §9 ("Must do") is the authority. The points agents mo
 - **`config.mk` — commands run from the flow directory**, not the root. `npm test` finds the root `package.json` by itself;
   other paths are relative to the flow directory (`python3 -m unittest discover -s ../tests`). **Run each command from the flow directory
   yourself** to confirm it works before you write it down.
-- **`TEST_CMD` must not replay cached results** (Go `-count=1`, Gradle `--rerun-tasks`, …; setup.md §9).
+- **`TEST_CMD` must not replay cached results** (Go `-count=1`, Gradle `test --rerun`, …; setup.md §9).
+- **Time `TEST_CMD`** when you run it, and report it. Over 2 minutes needs Claude Code's Bash timeout raised, and over 10 minutes
+  cannot be verified by the judges at all (setup.md §9). If the commands only work in the human's interactive shell
+  (a JDK or Node version set up in `.zshrc`), say so: the flow will not find them either.
+- **Never put a command that keeps running** (a dev server, `bootRun`, `spring-boot:run`, …) in `config.mk` or `permissions.json`.
 - **`FORMAT_FILE_CMD` checks, never formats**, and exits 0 when the file is formatted. For tools that answer through their output
   (`gofmt -l`), use a wrapper. No formatter: leave all four `FORMAT_*` empty.
 - **More than one module or package** with no single command from the flow directory: copy the wrappers into `.ai-flow/`
   (`examples/go/.ai-flow/` for Go) and call them by a path relative to the flow directory (setup.md §9).
 - **`permissions.json`** — allow exactly the commands in `config.mk` and the version checks you need, plus their absolute-path forms
-  from `which`. Do not allow general-purpose commands (`cat`, `grep`, `cp`, bare interpreters, `git -C`, …): `make check` rejects many of them,
+  from `which`. Do not allow general-purpose commands (`cat`, `grep`, `cp`, bare interpreters including `java`, `jshell`, `docker`, `git -C`, …): `make check` rejects many of them,
   and setup.md §6 ("Allows that must never be granted") explains why. Add secret files other than `.env` to `deny` as `Read(//**/<path>)`.
 - **`context.md`** — the documents the agents should read and keep up to date in this repository, and pitfalls of its commands. Keep it short:
   it is paid for on every step.
