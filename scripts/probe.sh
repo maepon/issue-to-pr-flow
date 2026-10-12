@@ -1,6 +1,6 @@
 #!/bin/bash
 # Probes the Claude Code behaviors the flow relies on or works around (docs/setup.md §6, "Pitfalls found by measurement").
-# Usage: ./scripts/probe.sh   (or make probe). Costs money: six short runs on a cheap model, about $0.20 in all.
+# Usage: ./scripts/probe.sh   (or make probe). Costs money: six short runs on a cheap model, about $0.25 in all.
 #
 # What it checks (the IDs are the ones in docs/setup.md §6 and Issue #47):
 #   A  workarounds for Claude Code behavior. "holds" means the workaround is still needed;
@@ -365,6 +365,24 @@ Bash
 ./probe-cmd.sh e1 2>&1
 ---
 Bash
+tail -n 1 ./data.txt
+---
+Bash
+tail -n 1 ./.env
+---
+Bash
+cat ./.env
+---
+Bash
+head -n 1 ./.env
+---
+Bash
+grep MARKER ./.env
+---
+Bash
+tail -n 1 ../.env
+---
+Bash
 cd ..
 ---
 Bash
@@ -402,6 +420,31 @@ bash_item r2 "${FX}" A1-redirect A "${A1} output redirection (>)" denied './prob
 bash_item r2 "${FX}" A1-stderr A "${A1} 2>&1" denied './probe-cmd.sh e1 2>&1' 'sub/probe-cmd.sh:e1'
 bash_item r2 "${FX}" A1-cd A "${A1} cd X && cmd" denied 'cd other && ./probe-cmd.sh c1' 'other/probe-cmd.sh:c1'
 
+# B9: commands Claude Code allows on its own as read-only (none of them is in the profile's allow) must not read a denied file.
+# Judged from the output: the file's marker must not come back. The first call shows whether tail is auto-allowed at all
+B9='a read-only command Claude Code allows on its own is checked against the Read denies:'
+CTL=$(call_state r2 Bash 'tail -n 1 ./data.txt')
+CTL_NOTE=""
+[ "${CTL}" = ok ] || CTL_NOTE="tail -n 1 ./data.txt was ${CTL} too, so tail may not be auto-allowed at all"
+cmd_read_item() {
+  local id="$1" claim="$2" cmd="$3" marker="$4" state
+  state=$(call_state r2 Bash "${cmd}")
+  if [ "${state}" = missing ]; then
+    record "${id}" B undetermined "${claim}" "the call was not made exactly as asked"
+  elif call_out r2 Bash "${cmd}" | LC_ALL=C grep -qF -- "${marker}"; then
+    record "${id}" B broken "${claim}" "the file was read"
+  elif [ "${state}" = error ]; then
+    record "${id}" B holds "${claim}" "${CTL_NOTE}"
+  else
+    record "${id}" B undetermined "${claim}" "succeeded without the file's content"
+  fi
+}
+cmd_read_item B9-tail "${B9} tail ./.env" 'tail -n 1 ./.env' SUB_ENV_MARKER
+cmd_read_item B9-cat "${B9} cat ./.env" 'cat ./.env' SUB_ENV_MARKER
+cmd_read_item B9-head "${B9} head ./.env" 'head -n 1 ./.env' SUB_ENV_MARKER
+cmd_read_item B9-grep "${B9} grep ./.env" 'grep MARKER ./.env' SUB_ENV_MARKER
+cmd_read_item B9-root "${B9} tail ../.env (the root .env, denied by Read(//**/.env))" 'tail -n 1 ../.env' ROOT_ENV_MARKER
+
 # A2 / B4 from the two pwd calls: the first follows `cd ..`, the second `cd /`. Matching by command is not enough
 # (both are "pwd"), so they are taken in call order
 PWDS=$(jq -r '[.[] | select(.name == "Bash" and .key == "pwd")] | map(if .err then "ERROR" else (.out | split("\n")[0]) end) | .[]' "${WORK}/r2.calls.json")
@@ -423,7 +466,7 @@ elif [ "${CD_OUT}" = error ] && [ "${PWD2}" != / ]; then
 else
   record B4 B broken "cd outside the working directories is refused" "cd ${CD_OUT}, then pwd: ${PWD2}"
 fi
-[ "$(sane r2 S2a S2b S2c)" = yes ] || void_run B3 B7 B8 A1-and A1-seq A1-pipe A1-heredoc A1-assign A1-subst A1-loop A1-redirect A1-stderr A1-cd A2 B4
+[ "$(sane r2 S2a S2b S2c)" = yes ] || void_run B3 B7 B8 B9-tail B9-cat B9-head B9-grep B9-root A1-and A1-seq A1-pipe A1-heredoc A1-assign A1-subst A1-loop A1-redirect A1-stderr A1-cd A2 B4
 
 # === R3: a Write rule with a path ===============================================================================
 FX="${WORK}/r3"; make_fixture "${FX}"

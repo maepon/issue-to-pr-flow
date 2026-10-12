@@ -11,10 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **`make probe`** (`scripts/probe.sh`): re-checks the Claude Code behaviors that docs/setup.md §6 "Pitfalls found by measurement"
-  relies on or works around, in throwaway git repositories, with six short runs on a cheap model (`PROBE_MODEL`, default `haiku`; about $0.20).
+  relies on or works around, in throwaway git repositories, with six short runs on a cheap model (`PROBE_MODEL`, default `haiku`; about $0.25).
   The shell judges each item from the tool calls and their results, logs written by the fixture's scripts, files on disk and
   `permission_denials`, not from the agent's reply; a call not made exactly as asked makes the item undetermined.
   Exits with 1 when a safety assumption no longer holds and 2 when an item is undetermined. Not part of `make check` (#47).
+  B9 checks that commands Claude Code allows on its own as read-only (`tail`, `cat`, `head`, `grep`) are still refused on a denied file
+  such as `.env`; found when a trial cycle showed `… | tail -5` passing without an allow.
   On 2.1.287 every safety assumption held; some workarounds no longer seem needed (some compound command forms pass,
   refusals by deny now appear in `permission_denials`, an allow in a profile named `settings.json` takes effect)
 
@@ -26,7 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the agents may get a few more denials before falling back to single commands; nothing becomes less safe, since each part is still checked
 - **docs/setup.md §6 "Pitfalls found by measurement" is reorganized by ID**: A (workarounds; each row says where it is relied on and
   what to change if it no longer holds) and B (assumptions the safety relies on; what breaks), with the version they were last checked on
-  (2.1.287) in one place. It adds B7 (compound commands are checked part by part) and B8 (input redirection is checked against the `Read` denies),
+  (2.1.287) in one place. It adds B7 (compound commands are checked part by part), B8 (input redirection is checked against the `Read` denies) and B9 (auto-allowed read-only commands are too),
   marks A5a and A6 as no longer holding, and has manual steps for what `make probe` cannot check (A7 in an interactive session,
   B6 with user-level settings). The comments in `scripts/claude-run.sh` and the profiles refer to the IDs
 - The profiles keep their `*-permissions.json` names: a `deny` in `settings.json` still binds interactive sessions (A7)
