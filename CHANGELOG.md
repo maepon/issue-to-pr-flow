@@ -20,6 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and `make check` fails if a merged profile lacks it. Nothing to change in your `.ai-flow/`
 - `implement.md` and `review-fix.md` tell the agents not to weaken an existing test to make it pass (`or True`, deleting assertions,
   changing the input so the case disappears, skipping)
+- `spec.md` and `plan-judge.md` know that tracked files cannot be rewritten with `Write`: an instruction document must not ask the agents
+  to replace a tracked file as a whole, but say who does it (a human, or an allowed command), and plan-judge sends one that does not to a human
 
 ## [0.12.0] - 2026-10-12
 

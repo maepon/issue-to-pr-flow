@@ -561,7 +561,8 @@ bash_item r6 "${FX}" B6 B "a profile deny beats an allow from another settings s
 [ "$(sane r6 S6b)" = yes ] || void_run B6
 
 # === R7: the Write hook merge-permissions.sh adds (#58) =============================================================
-# The profile goes through the real merge-permissions.sh, so the hook is the one the flow installs. root.txt is tracked
+# The profile goes through the real merge-permissions.sh, so the hook is the one the flow installs. root.txt is tracked.
+# root.txt is Read first: Claude Code refuses a Write to an existing file that was not Read, and that refusal would pass for the hook's
 FX="${WORK}/r7"; make_fixture "${FX}"
 P="${FX}/profile/r7-permissions.json"
 profile "${FX}/profile/r7-base.json" '["Read","Write","Edit"]' '[]'
@@ -573,6 +574,9 @@ else
 Write
 file_path: ${FX}/repo/sub/tmp/r7.txt
 content: the two characters "ok" (no newline)
+---
+Read
+${FX}/repo/root.txt
 ---
 Write
 file_path: ${FX}/repo/root.txt
@@ -590,6 +594,9 @@ EOF
     record B10 B undetermined "${B10}" "the call was not made exactly as asked"
   elif ! LC_ALL=C grep -qF ROOT_CHANGED_MARKER "${FX}/repo/root.txt"; then
     record B10 B broken "${B10}" "the file was rewritten"
+  elif [ "$(call_state r7 Read "${FX}/repo/root.txt")" != ok ]; then
+    # Without the Read, Claude Code refuses the Write by itself, so a refusal says nothing about the hook
+    record B10 B undetermined "${B10}" "root.txt was not Read before the Write"
   elif [ "${STATE}" = error ]; then
     # Whether the refusal reaches claude-run.sh's warning and the reason reaches the agent is reported, not judged
     NOTE="in permission_denials: $(jq -r --arg p "${FX}/repo/root.txt" 'any(.[]; .tool_input.file_path == $p)' "${WORK}/r7.denials.json")"

@@ -46,6 +46,9 @@ Plan revision can only change the plan. Use `NEEDS_HUMAN` only for unmet criteri
   (`\u003c` and the like) or its final newline matters. `Write` takes the content as a JSON string and writes an escape as the raw
   character, and `cp` is not allowed, so no plan can produce the bytes. It can be met only when a human makes the copy, or a copy command
   allowed in `.ai-flow/permissions.json` does; check that the instruction document says so
+- The AC requires replacing a file git tracks as a whole (regenerating a fixture or a generated file, for example), and no `Edit` can
+  reasonably make that change. A hook refuses `Write` to tracked files, so it can be met only when a human replaces the file, or a command
+  allowed in `.ai-flow/permissions.json` does; check that the instruction document says so
 
 An unmet criterion that a rewrite of the plan can fix is `CHANGES_REQUESTED`, however large. When in doubt, choose `CHANGES_REQUESTED`.
 If there is even one `NEEDS_HUMAN`, the verdict is `NEEDS_HUMAN` even if there are other fixable findings.
