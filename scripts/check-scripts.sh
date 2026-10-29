@@ -29,7 +29,7 @@ done
 #    Positional parameters such as $1 end after one digit and are excluded.
 offenders=$(LC_ALL=C awk '
   /\$[A-Za-z_][A-Za-z_0-9]*[\200-\377]/ { printf "  %s:%d: %s\n", FILENAME, FNR, $0 }
-' scripts/*.sh Makefile)
+' scripts/*.sh .claude/hooks/*.sh Makefile)
 if [ -n "${offenders}" ]; then
   ng "A non-ASCII character follows a variable expansion. bash 3.2 misreads the variable name; write \${x}:
 ${offenders}"

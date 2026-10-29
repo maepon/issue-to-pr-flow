@@ -17,7 +17,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the agent weakened existing tests to get them to pass, even though the instruction document forbade rewriting that file by name.
   `_rules.md` now states the rule (and to re-`Read` and retry with a shorter `old_string` when an `Edit` does not match).
   `make probe` checks the hook with a new run (B10; seven runs, about $0.30), `selftest.sh` checks which paths it refuses,
-  and `make check` fails if a merged profile lacks it. Nothing to change in your `.ai-flow/`
+  and `make check` fails if a merged profile lacks it. Nothing to change in your `.ai-flow/`.
+  The hook checks a symlink as its target, a name in another case as the tracked file on a file system that ignores case,
+  and `[ ] * ?` in a name literally. It is run with `bash`, so a copy without the executable bit works
 - `implement.md` and `review-fix.md` tell the agents not to weaken an existing test to make it pass (`or True`, deleting assertions,
   changing the input so the case disappears, skipping)
 - `spec.md` and `plan-judge.md` know that tracked files cannot be rewritten with `Write`: an instruction document must not ask the agents

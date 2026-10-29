@@ -477,10 +477,15 @@ echo 'x' > "${HK}/repo/tracked.txt"; echo 'x' > "${HK}/repo/my file.txt"
 git -C "${HK}/repo" add tracked.txt "my file.txt"
 git -C "${HK}/repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q -m init
 echo 'x' > "${HK}/repo/untracked.txt"; echo 'x' > "${HK}/repo/tmp/scratch.md"; echo 'x' > "${HK}/outside/a.txt"
-hook() {   # hook <file_path> [cwd]: prints DENY, PASS or the unexpected output
+echo 'x' > "${HK}/repo/i.tsx"; git -C "${HK}/repo" add i.tsx
+git -C "${HK}/repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q -m glob
+echo 'x' > "${HK}/repo/[id].tsx"
+ln -s ../tracked.txt "${HK}/repo/tmp/link.txt"; ln -s untracked.txt "${HK}/repo/tmp/link-untracked.txt"
+hook() {   # hook <file_path> [cwd, "-" for none]: prints DENY, PASS or the unexpected output
   local out
-  out=$(jq -n --arg p "$1" --arg c "${2:-${HK}/repo}" '{cwd: $c, tool_name: "Write", tool_input: {file_path: $p, content: "y"}}' \
-    | ./.claude/hooks/deny-overwrite.sh 2>&1)
+  out=$(jq -n --arg p "$1" --arg c "${2:-${HK}/repo}" '{cwd: $c, tool_name: "Write", tool_input: {file_path: $p, content: "y"}}
+      | if .cwd == "-" then del(.cwd) else . end' \
+    | bash ./.claude/hooks/deny-overwrite.sh 2>&1)
   if [ -z "${out}" ]; then echo PASS
   elif [ "$(printf '%s' "${out}" | jq -r '.hookSpecificOutput.permissionDecision' 2>/dev/null)" = deny ]; then echo DENY
   else printf '%s\n' "${out}"; fi
@@ -498,6 +503,14 @@ hook_case "an existing untracked file (one the agent created earlier)" PASS "${H
 hook_case "a working file under tmp/" PASS "${HK}/repo/tmp/scratch.md"
 hook_case "a file outside any repository" PASS "${HK}/outside/a.txt"
 hook_case "a new file in a directory that does not exist" PASS "${HK}/repo/no/such/dir.txt"
+hook_case "a relative path with no cwd (cannot be resolved)" PASS "tracked.txt" -
+hook_case "an untracked name with glob characters next to a tracked file it would match" PASS "${HK}/repo/[id].tsx"
+hook_case "an untracked symlink to a tracked file" DENY "${HK}/repo/tmp/link.txt"
+hook_case "a symlink to an untracked file" PASS "${HK}/repo/tmp/link-untracked.txt"
+# On a file system that ignores case (git sets core.ignorecase when it creates the repository), another case is the same file
+if [ "$(git -C "${HK}/repo" config --bool core.ignorecase)" = true ]; then
+  hook_case "a tracked file named in another case" DENY "${HK}/repo/TRACKED.txt"
+fi
 [ -n "$(git -C "${HK}/repo" status --porcelain -- tracked.txt)" ] && ng "deny-overwrite.sh changed the file it was asked about."
 
 # --- require_no_mixed_tooling (impl / review stop on tooling commits before anything is charged) ---
