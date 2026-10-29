@@ -471,16 +471,21 @@ expect "claude-run.sh (SLACK_WEBHOOK_URL and GOOGLE_CHAT_WEBHOOK_URL are removed
 # --- The Write hook (.claude/hooks/deny-overwrite.sh, #58): which paths it refuses ---
 # Fed the hook JSON the way Claude Code would. A refusal is a deny decision on stdout; anything else must print nothing
 HK="${WORK}/hook"
-mkdir -p "${HK}/repo/tmp" "${HK}/outside"
+hkc() { git -C "${HK}/repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false "$@"; }
+mkdir -p "${HK}/repo/tmp" "${HK}/outside" "${HK}/broken"
 git -C "${HK}/repo" init -q
-echo 'x' > "${HK}/repo/tracked.txt"; echo 'x' > "${HK}/repo/my file.txt"
-git -C "${HK}/repo" add tracked.txt "my file.txt"
-git -C "${HK}/repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q -m init
-echo 'x' > "${HK}/repo/untracked.txt"; echo 'x' > "${HK}/repo/tmp/scratch.md"; echo 'x' > "${HK}/outside/a.txt"
-echo 'x' > "${HK}/repo/i.tsx"; git -C "${HK}/repo" add i.tsx
-git -C "${HK}/repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q -m glob
-echo 'x' > "${HK}/repo/[id].tsx"
-ln -s ../tracked.txt "${HK}/repo/tmp/link.txt"; ln -s untracked.txt "${HK}/repo/tmp/link-untracked.txt"
+echo 'x' > "${HK}/repo/tracked.txt"; echo 'x' > "${HK}/repo/my file.txt"; echo 'x' > "${HK}/repo/i.tsx"; echo 'x' > "${HK}/repo/gone.txt"
+echo 'x' > "${HK}/outside/a.txt"
+ln -s ../outside/a.txt "${HK}/repo/tracked-link.txt"
+hkc add tracked.txt "my file.txt" i.tsx gone.txt tracked-link.txt; hkc commit -q -m init
+rm "${HK}/repo/gone.txt"
+echo 'x' > "${HK}/repo/untracked.txt"; echo 'x' > "${HK}/repo/tmp/scratch.md"; echo 'x' > "${HK}/repo/[id].tsx"
+ln -s ../tracked.txt "${HK}/repo/tmp/link.txt"; ln -s ../untracked.txt "${HK}/repo/tmp/link-untracked.txt"
+# A chain of 11 untracked links that ends at a tracked file: c0 -> ../tracked.txt, c1 -> c0, ..., c11 -> c10
+ln -s ../tracked.txt "${HK}/repo/tmp/c0"
+for i in 1 2 3 4 5 6 7 8 9 10 11; do ln -s "c$((i - 1))" "${HK}/repo/tmp/c${i}"; done
+# A repository git cannot read (a broken config stands in for dubious ownership)
+git -C "${HK}/broken" init -q; echo 'x' > "${HK}/broken/f.txt"; printf '[broken\n' >> "${HK}/broken/.git/config"
 hook() {   # hook <file_path> [cwd, "-" for none]: prints DENY, PASS or the unexpected output
   local out
   out=$(jq -n --arg p "$1" --arg c "${2:-${HK}/repo}" '{cwd: $c, tool_name: "Write", tool_input: {file_path: $p, content: "y"}}
@@ -493,7 +498,7 @@ hook() {   # hook <file_path> [cwd, "-" for none]: prints DENY, PASS or the unex
 hook_case() {   # hook_case <name> <expected DENY|PASS> <file_path> [cwd]
   local got
   got=$(hook "$3" "${4:-}")
-  [ "${got}" = "$2" ] && pass=$((pass + 1)) || ng "deny-overwrite.sh ($1): expected $2, got: ${got}"
+  expect "deny-overwrite.sh ($1)" 0 "$2" "${got}" 0
 }
 hook_case "a tracked file" DENY "${HK}/repo/tracked.txt"
 hook_case "a tracked file with a space in its name" DENY "${HK}/repo/my file.txt"
@@ -504,9 +509,15 @@ hook_case "a working file under tmp/" PASS "${HK}/repo/tmp/scratch.md"
 hook_case "a file outside any repository" PASS "${HK}/outside/a.txt"
 hook_case "a new file in a directory that does not exist" PASS "${HK}/repo/no/such/dir.txt"
 hook_case "a relative path with no cwd (cannot be resolved)" PASS "tracked.txt" -
+hook_case "a path with a newline is one path, not a path and a cwd" PASS "${HK}/repo/tracked.txt"$'\n'"x"
 hook_case "an untracked name with glob characters next to a tracked file it would match" PASS "${HK}/repo/[id].tsx"
 hook_case "an untracked symlink to a tracked file" DENY "${HK}/repo/tmp/link.txt"
-hook_case "a symlink to an untracked file" PASS "${HK}/repo/tmp/link-untracked.txt"
+hook_case "an untracked symlink to an untracked file" PASS "${HK}/repo/tmp/link-untracked.txt"
+hook_case "a chain of 10 symlinks to a tracked file" DENY "${HK}/repo/tmp/c9"
+hook_case "a chain of more than 10 symlinks" DENY "${HK}/repo/tmp/c11"
+hook_case "a tracked symlink to a file outside the repository" DENY "${HK}/repo/tracked-link.txt"
+hook_case "a tracked file missing from the working tree" DENY "${HK}/repo/gone.txt"
+hook_case "a file in a repository git cannot read" DENY "${HK}/broken/f.txt"
 # On a file system that ignores case (git sets core.ignorecase when it creates the repository), another case is the same file
 if [ "$(git -C "${HK}/repo" config --bool core.ignorecase)" = true ]; then
   hook_case "a tracked file named in another case" DENY "${HK}/repo/TRACKED.txt"

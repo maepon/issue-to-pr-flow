@@ -565,10 +565,12 @@ bash_item r6 "${FX}" B6 B "a profile deny beats an allow from another settings s
 # root.txt is Read first: Claude Code refuses a Write to an existing file that was not Read, and that refusal would pass for the hook's
 FX="${WORK}/r7"; make_fixture "${FX}"
 P="${FX}/profile/r7-permissions.json"
+B10='the hook from merge-permissions.sh refuses Write to a file git tracks'
 profile "${FX}/profile/r7-base.json" '["Read","Write","Edit"]' '[]'
 echo '{}' > "${FX}/profile/permissions.json"
 if ! AI_FLOW_PROJECT_DIR="${FX}/profile" "$(dirname "$0")/merge-permissions.sh" "${FX}/profile/r7-base.json" > "${P}"; then
   record S7 S broken "R7: merge-permissions.sh builds the profile with the hook"
+  record B10 B undetermined "${B10}" "R7 did not run"
 else
   write_prompt "${WORK}/r7.prompt" <<EOF
 Write
@@ -588,7 +590,6 @@ EOF
   else
     record S7 S broken "R7: with the hook installed, Write still creates a new file"
   fi
-  B10='the hook from merge-permissions.sh refuses Write to a file git tracks'
   STATE=$(call_state r7 Write "${FX}/repo/root.txt")
   if [ "${STATE}" = missing ]; then
     record B10 B undetermined "${B10}" "the call was not made exactly as asked"

@@ -459,9 +459,11 @@ The merged result is not kept in `tmp/` or elsewhere because an agent could rewr
 `merge-permissions.sh` also adds a PreToolUse hook to every profile: `.claude/hooks/deny-overwrite.sh` **refuses `Write` to a file git tracks**
 and tells the agent to use `Edit` (#58). Copying an existing file through `Write`'s argument does not reproduce it (A3: escapes come back as
 the raw character; a long file hits the output limit and gets cut), and agents rewrote whole files even when the instruction document named the file
-and forbade it. New files, `tmp/` and files the agent created earlier are not tracked, so they pass. A symlink is checked as its target,
-a name in another case is checked as the tracked file where git says the file system ignores case (the macOS default), and `[ ] * ?` in a name
-are not globs. The hook is run with `bash`, so it works without its executable bit. The permission lists cannot say this (A4),
+and forbade it. New files, `tmp/` and files the agent created earlier are not tracked, so they pass. Every name along a chain of symlinks is checked
+as well as its target (a chain longer than 10 is refused), a tracked file missing from the working tree is not recreated, a name in another case
+is checked as the tracked file where git says the file system ignores case (the macOS default), and `[ ] * ?` in a name are not globs.
+Where it cannot decide (outside a repository, a directory that does not exist) it lets the call through, but a git error inside a repository
+(dubious ownership, a broken config) refuses it: passing would switch the hook off unnoticed. It is run with `bash`, so it works without its executable bit. The permission lists cannot say this (A4),
 which is why it is a hook; it lives under `.claude/` so that agents cannot change it during a step (B1). `make probe` checks it (B10),
 `selftest.sh` checks which paths it refuses, and `check-scripts.sh` checks that every merged profile has it.
 
