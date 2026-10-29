@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `make probe` checks the hook with a new run (B10; seven runs, about $0.30), `selftest.sh` checks which paths it refuses,
   and `make check` fails if a merged profile lacks it. Nothing to change in your `.ai-flow/`.
   The hook checks every link of a symlink chain and its target (more than 10 links is refused), refuses to recreate a tracked file
-  missing from the working tree, checks a name in another case as the tracked file on a file system that ignores case,
+  missing from the working tree (even when its whole directory is gone), checks a name in another case as the tracked file on a file system that ignores case,
   and takes `[ ] * ?` in a name literally. A git error inside a repository refuses the call instead of switching the hook off.
   It is run with `bash`, so a copy without the executable bit works
 - `implement.md` and `review-fix.md` tell the agents not to weaken an existing test to make it pass (`or True`, deleting assertions,

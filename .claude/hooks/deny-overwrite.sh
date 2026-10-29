@@ -8,7 +8,7 @@
 # New files, the flow's tmp/ (gitignored) and files the agent created earlier (untracked) are not tracked, so they pass.
 #
 # It lives under .claude/ because Claude Code itself blocks writes there (B1): an agent cannot switch it off during the step.
-# It fails open where it cannot decide (no path, a relative path with no cwd, a directory that does not exist, outside any repository):
+# It fails open where it cannot decide (no path, a relative path with no cwd, outside any repository):
 # it is accident prevention, like the denies, not isolation. A git error inside a repository (dubious ownership, a broken config)
 # refuses instead: passing would switch the hook off without anyone noticing.
 set -uo pipefail
@@ -26,11 +26,18 @@ deny() {
   exit 0
 }
 
-# tracked <path>: 0 if git tracks it, 1 if not (or no repository / no directory), 2 if git failed (the error in git_err)
+# tracked <path>: 0 if git tracks it, 1 if not (or no repository), 2 if git failed (the error in git_err).
+# A directory that no longer exists is looked up from the nearest one that does, so that a tracked file is not recreated
+# after its whole directory went away
 git_err=""
 tracked() {
-  local dir magic
-  dir=$(cd -P "$(dirname "$1")" 2>/dev/null && pwd) || return 1
+  local dir rel magic
+  dir=$(dirname "$1"); rel=$(basename "$1")
+  while [ ! -d "${dir}" ]; do
+    case "${dir}" in /|.) return 1 ;; esac
+    rel="$(basename "${dir}")/${rel}"; dir=$(dirname "${dir}")
+  done
+  dir=$(cd -P "${dir}" 2>/dev/null && pwd) || return 1
   git_err=$(LC_ALL=C git -C "${dir}" rev-parse --git-dir 2>&1 >/dev/null) || {
     case "${git_err}" in *"not a git repository"*) return 1 ;; *) return 2 ;; esac
   }
@@ -38,7 +45,7 @@ tracked() {
   # so that readme.md does not get past a tracked README.md
   magic=literal
   [ "$(git -C "${dir}" config --bool core.ignorecase 2>/dev/null)" = true ] && magic=literal,icase
-  git_err=$(LC_ALL=C git -C "${dir}" ls-files --error-unmatch -- ":(${magic})$(basename "$1")" 2>&1 >/dev/null)
+  git_err=$(LC_ALL=C git -C "${dir}" ls-files --error-unmatch -- ":(${magic})${rel}" 2>&1 >/dev/null)
   case $? in 0) return 0 ;; 1) return 1 ;; *) return 2 ;; esac
 }
 
