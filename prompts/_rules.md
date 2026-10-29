@@ -23,6 +23,15 @@ The exit code shows up in the result of the call, so there is no need to append 
 (`cp ./.env /tmp/x` would get around the `Read(./.env)` deny).
 `mkdir` is allowed, so create a working directory under `tmp/` (`{{FLOW_DIR}}/tmp/`, not tracked by git) and Write files there.
 
+## Changing existing files
+
+- **Change a file git tracks with `Edit`, never by rewriting it with `Write`.** A hook refuses `Write` to such files.
+  Copying a file's contents through a tool argument does not reproduce it: escapes such as `\u201c` come back as the raw character,
+  and a long file gets cut short, so a rewrite breaks lines you did not mean to change
+- `Write` is for new files and for your working files under `tmp/`
+- If an `Edit` does not match, `Read` those lines again and retry with a shorter `old_string` that is still unique.
+  Do not get around it by writing the file another way
+
 ## Posting a comment on the Issue
 
 Always follow these steps.

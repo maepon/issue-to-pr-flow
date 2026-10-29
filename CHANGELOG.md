@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Agents can no longer rewrite a file git tracks with `Write`** ([#58](https://github.com/maepon/issue-to-pr-flow/issues/58)).
+  `merge-permissions.sh` adds a PreToolUse hook (`.claude/hooks/deny-overwrite.sh`) to every profile; it refuses `Write` to a tracked file
+  and tells the agent to use `Edit`. New files, `tmp/` and files the agent created earlier pass as before. In a host repository an agent
+  rewrote a ~1100-line test file twice: once it hit the output limit and left three lines, once escapes came back as raw characters and
+  the agent weakened existing tests to get them to pass, even though the instruction document forbade rewriting that file by name.
+  `_rules.md` now states the rule (and to re-`Read` and retry with a shorter `old_string` when an `Edit` does not match).
+  `make probe` checks the hook with a new run (B10; seven runs, about $0.30), `selftest.sh` checks which paths it refuses,
+  and `make check` fails if a merged profile lacks it. Nothing to change in your `.ai-flow/`
+- `implement.md` and `review-fix.md` tell the agents not to weaken an existing test to make it pass (`or True`, deleting assertions,
+  changing the input so the case disappears, skipping)
+
 ## [0.12.0] - 2026-10-12
 
 ### Added

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Probes the Claude Code behaviors the flow relies on or works around (docs/setup.md §6, "Pitfalls found by measurement").
-# Usage: ./scripts/probe.sh   (or make probe). Costs money: six short runs on a cheap model, about $0.25 in all.
+# Usage: ./scripts/probe.sh   (or make probe). Costs money: seven short runs on a cheap model, about $0.30 in all.
 #
 # What it checks (the IDs are the ones in docs/setup.md §6 and Issue #47):
 #   A  workarounds for Claude Code behavior. "holds" means the workaround is still needed;
@@ -559,6 +559,51 @@ bash_item r6 "${FX}" B6 B "a profile deny beats an allow from another settings s
   './probe-cmd.sh b6' 'sub/probe-cmd.sh:b6'
 [ "$(sane r6 S6a)" = yes ] || void_run A7 B6
 [ "$(sane r6 S6b)" = yes ] || void_run B6
+
+# === R7: the Write hook merge-permissions.sh adds (#58) =============================================================
+# The profile goes through the real merge-permissions.sh, so the hook is the one the flow installs. root.txt is tracked
+FX="${WORK}/r7"; make_fixture "${FX}"
+P="${FX}/profile/r7-permissions.json"
+profile "${FX}/profile/r7-base.json" '["Read","Write","Edit"]' '[]'
+echo '{}' > "${FX}/profile/permissions.json"
+if ! AI_FLOW_PROJECT_DIR="${FX}/profile" "$(dirname "$0")/merge-permissions.sh" "${FX}/profile/r7-base.json" > "${P}"; then
+  record S7 S broken "R7: merge-permissions.sh builds the profile with the hook"
+else
+  write_prompt "${WORK}/r7.prompt" <<EOF
+Write
+file_path: ${FX}/repo/sub/tmp/r7.txt
+content: the two characters "ok" (no newline)
+---
+Write
+file_path: ${FX}/repo/root.txt
+content: the two characters "ok" (no newline)
+EOF
+  run_claude r7 "${FX}/repo/sub" "${P}" yes "${WORK}/r7.prompt"
+  if [ "$(call_state r7 Write "${FX}/repo/sub/tmp/r7.txt")" = ok ] && [ -f "${FX}/repo/sub/tmp/r7.txt" ]; then
+    record S7 S holds "R7: with the hook installed, Write still creates a new file"
+  else
+    record S7 S broken "R7: with the hook installed, Write still creates a new file"
+  fi
+  B10='the hook from merge-permissions.sh refuses Write to a file git tracks'
+  STATE=$(call_state r7 Write "${FX}/repo/root.txt")
+  if [ "${STATE}" = missing ]; then
+    record B10 B undetermined "${B10}" "the call was not made exactly as asked"
+  elif ! LC_ALL=C grep -qF ROOT_CHANGED_MARKER "${FX}/repo/root.txt"; then
+    record B10 B broken "${B10}" "the file was rewritten"
+  elif [ "${STATE}" = error ]; then
+    # Whether the refusal reaches claude-run.sh's warning and the reason reaches the agent is reported, not judged
+    NOTE="in permission_denials: $(jq -r --arg p "${FX}/repo/root.txt" 'any(.[]; .tool_input.file_path == $p)' "${WORK}/r7.denials.json")"
+    if call_out r7 Write "${FX}/repo/root.txt" | LC_ALL=C grep -qF 'Change an existing file with Edit'; then
+      NOTE="${NOTE}; the reason reached the agent"
+    else
+      NOTE="${NOTE}; the reason did not reach the agent"
+    fi
+    record B10 B holds "${B10}" "${NOTE}"
+  else
+    record B10 B undetermined "${B10}" "succeeded without changing the file"
+  fi
+  [ "$(sane r7 S7)" = yes ] || void_run B10
+fi
 
 # === A10: no model call ===========================================================================================
 # Without "=", --add-dir takes the prompt as a second directory and claude stops for lack of a prompt.

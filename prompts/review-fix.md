@@ -25,6 +25,10 @@ Your job is to **fix the latest review findings** for Issue #{{ISSUE}}.
 
 - **Do not make changes beyond the scope of the instruction document.** If you think one is needed, do not make it; write it in the report
 - Do not change things that were not pointed out
+{{#if TEST_CMD}}
+- **Do not weaken an existing test to make it pass** (adding `or True` to an assertion, deleting an assertion,
+  changing its input so the case it checks disappears, skipping it). If an existing test fails, fix your change
+{{/if}}
 - If you cannot address a finding, write why. **Do not silently drop it**
 - Suggestions marked `non-blocking` do not affect the verdict, so addressing them is optional. No reason is needed if you do not address them
 

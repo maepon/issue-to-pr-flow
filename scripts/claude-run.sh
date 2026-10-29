@@ -20,6 +20,7 @@
 #   - B2: paths work for Read. deny Read(./.env) beats a bare allow Read too
 #   - B1: Claude Code itself blocks writes under .claude/, so an agent cannot rewrite its own permission profile.
 #     prompts/ and scripts/ are not covered, though, so run-phase.sh checks the working tree
+#   - B10: Write to a file git tracks is refused by the PreToolUse hook merge-permissions.sh adds (.claude/hooks/deny-overwrite.sh, #58)
 #
 # A deny is "accident prevention", not "isolation". As long as running the tests (TEST_CMD) is allowed,
 # the agent can execute arbitrary code, and could reach denied operations if it wanted to.

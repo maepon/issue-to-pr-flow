@@ -16,6 +16,9 @@ Your job is to **implement exactly as the approved implementation plan** for Iss
      follow it. But **always restore it after checking**, and confirm the restore with
      `git diff` before reporting
 3. Confirm that `{{TEST_CMD}}` passes completely. Do not report with failures remaining
+   - **Do not weaken an existing test to make it pass** (adding `or True` to an assertion, deleting an assertion,
+     changing its input so the case it checks disappears, skipping it). If an existing test fails, fix your change.
+     If the instruction document changes the behavior that test checks, change only what it requires and say so in the report
 {{/if}}
 {{#unless TEST_CMD}}
 2. Run the commands in the plan's verification table once **before** implementing, and note which ones do not yet give

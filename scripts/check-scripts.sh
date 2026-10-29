@@ -18,7 +18,7 @@ ng() { echo "NG: $1" >&2; status=1; }
 [ -z "${flow_paths_error}" ] || { echo "NG: ${flow_paths_error}" >&2; exit 1; }
 
 # 1. Shell syntax. It cannot see what only shows at run time, but typos fail here
-for f in scripts/*.sh; do
+for f in scripts/*.sh .claude/hooks/*.sh; do
   bash -n "${f}" 2>/dev/null || ng "${f}: bash -n fails."
 done
 
@@ -62,6 +62,11 @@ Bash(rm:*)
 Bash(git rebase:*)
 Bash(git reset --hard:*)
 EOF
+
+  # The hook that refuses Write to files git tracks (#58). merge-permissions.sh adds it; a profile that drops it
+  # (or a merge that stops adding it) would let agents rewrite existing files again
+  jq -e '[.hooks.PreToolUse[]? | select(.matcher == "Write") | .hooks[]?.command | select(test("/\\.claude/hooks/deny-overwrite\\.sh"))] | length == 1' \
+    "${MERGED}" >/dev/null 2>&1 || ng "${p}: the Write hook (.claude/hooks/deny-overwrite.sh) is missing from hooks.PreToolUse."
 
   # Commands that must never be allowed.
   # General-purpose commands that can read files (grep / cat / sed / awk / head / cp) get around the Read(./.env) deny.

@@ -88,7 +88,7 @@ help:
 	@echo "                        It runs automatically before each phase above, so you rarely need it on its own"
 	@echo
 	@echo "  make probe            Re-checks the Claude Code behaviors the permission design relies on or works around"
-	@echo "                        (docs/setup.md §6). Costs money (a few short runs on a cheap model, about \$$0.25)."
+	@echo "                        (docs/setup.md §6). Costs money (a few short runs on a cheap model, about \$$0.30)."
 	@echo "                        Run it when claude --version goes up. Exits non-zero if a safety assumption no longer holds"
 	@echo
 	@echo "Variables: ISSUE (target Issue number)  MAX_ROUNDS (maximum judging rounds, default $(MAX_ROUNDS))"
