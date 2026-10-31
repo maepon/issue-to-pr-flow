@@ -473,7 +473,7 @@ These are counter-intuitive, so **read them before editing a profile.**
 The comment at the top of `scripts/claude-run.sh` keeps a short version, by ID.
 
 **These are measurements against particular versions, not Claude Code's specification.**
-**Unless a row says otherwise, every row was last checked with `make probe` on 2.1.308 (2026-10-29).**
+**Unless a row says otherwise, every row was last checked with `make probe` on 2.1.308 (2026-10-30).**
 They may change as versions move, so note `claude --version` when you install, and when it goes up run **`make probe`** (`scripts/probe.sh`).
 It re-checks the rows in throwaway repositories, with seven short runs on a cheap model (about $0.30; they cannot be checked without cost),
 and prints for each ID whether it still holds. It exits with 1 when an assumption the safety relies on (B) no longer holds,

@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-31
+
 ### Added
 
 - **Agents can no longer rewrite a file git tracks with `Write`** ([#58](https://github.com/maepon/issue-to-pr-flow/issues/58)).
@@ -17,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the agent weakened existing tests to get them to pass, even though the instruction document forbade rewriting that file by name.
   `_rules.md` now states the rule (and to re-`Read` and retry with a shorter `old_string` when an `Edit` does not match).
   `make probe` checks the hook with a new run (B10; seven runs, about $0.30), `selftest.sh` checks which paths it refuses,
-  and `make check` fails if a merged profile lacks it. Nothing to change in your `.ai-flow/`.
+  and `make check` fails if a merged profile lacks it (#59 closes ways around it found in review). Nothing to change in your `.ai-flow/`.
   The hook checks every link of a symlink chain and its target (more than 10 links is refused), refuses to recreate a tracked file
   missing from the working tree (even when its whole directory is gone), checks a name in another case as the tracked file on a file system that ignores case,
   and takes `[ ] * ?` in a name literally. A git error inside a repository refuses the call instead of switching the hook off.
@@ -25,7 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `implement.md` and `review-fix.md` tell the agents not to weaken an existing test to make it pass (`or True`, deleting assertions,
   changing the input so the case disappears, skipping)
 - `spec.md` and `plan-judge.md` know that tracked files cannot be rewritten with `Write`: an instruction document must not ask the agents
-  to replace a tracked file as a whole, but say who does it (a human, or an allowed command), and plan-judge sends one that does not to a human
+  to replace a tracked file as a whole, but say who does it (a human, or an allowed command), and plan-judge sends one that does not to a human.
+  **Host repositories** do not need to change anything in this release
 
 ## [0.12.0] - 2026-10-12
 
@@ -361,7 +364,8 @@ so its history is included; Issue / PR numbers in those commit messages refer to
 - The scripts' comments and terminal / Slack messages are in Japanese (fixed in 0.3.0)
 - A project without a formatter or a test command is not supported yet: prompts that use an empty `FORMAT_*` / `TEST_CMD` value stop at render time (formatter: fixed in 0.2.0; tests: fixed in 0.4.0)
 
-[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/maepon/issue-to-pr-flow/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/maepon/issue-to-pr-flow/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/maepon/issue-to-pr-flow/compare/v0.10.1...v0.10.2
