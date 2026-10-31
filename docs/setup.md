@@ -212,13 +212,15 @@ so there is nothing to add to your root `.gitignore`.
 tmp/
 !.claude/
 !.claude/*-permissions.json
+!.claude/hooks/
+!.claude/hooks/*.sh
 .claude/settings.json
 .claude/settings.local.json
 ```
 
 **`tmp/` is essential.** It is where the agents write comment bodies; if it were tracked by git,
 `run-phase.sh`'s working tree check would fire every time and the flow would stop.
-The two `!.claude/` lines bring the permission files back in environments whose global gitignore ignores `.claude`
+The `!.claude/` lines bring the permission files and the hook back in environments whose global gitignore ignores `.claude`
 (per-directory `.gitignore` files take precedence over the global one).
 
 ---
@@ -327,7 +329,7 @@ and delete `tmp/cost-issue<N>.txt` afterwards.
 | `make pr-review ISSUE=n` | Argues against the PR (Devil's Advocate). Not part of the main flow | A comment on the PR |
 | `make create-pr ISSUE=n` | Retries only the push and PR creation (`create_pr`) | A PR exists |
 | `make check` | Static checks and the regression tests (`scripts/selftest.sh`); runs automatically before each phase | — |
-| `make probe` | Re-checks the Claude Code behaviors in §6 "Pitfalls found by measurement". Costs about $0.25; run it when `claude --version` goes up | A list of results |
+| `make probe` | Re-checks the Claude Code behaviors in §6 "Pitfalls found by measurement". Costs about $0.30; run it when `claude --version` goes up | A list of results |
 
 Run `review` on its own after `impl` stopped without converging and you fixed things by hand.
 `code-review` on its own is for when the PR exists but posting failed.
@@ -454,15 +456,26 @@ not the settings file's location, so they still work from a temporary file; B5 b
 The merged result is not kept in `tmp/` or elsewhere because an agent could rewrite it to widen the permissions of the next step.
 `check-scripts.sh` checks the permissions after merging, for all three profiles.
 
+`merge-permissions.sh` also adds a PreToolUse hook to every profile: `.claude/hooks/deny-overwrite.sh` **refuses `Write` to a file git tracks**
+and tells the agent to use `Edit` (#58). Copying an existing file through `Write`'s argument does not reproduce it (A3: escapes come back as
+the raw character; a long file hits the output limit and gets cut), and agents rewrote whole files even when the instruction document named the file
+and forbade it. New files, `tmp/` and files the agent created earlier are not tracked, so they pass. Every name along a chain of symlinks is checked
+as well as its target (a chain longer than 10 is refused), a tracked file missing from the working tree is not recreated (even when its whole directory is gone), a name in another case
+is checked as the tracked file where git says the file system ignores case (the macOS default), and `[ ] * ?` in a name are not globs.
+Where it cannot decide (outside a repository) it lets the call through, but a git error inside a repository
+(dubious ownership, a broken config) refuses it: passing would switch the hook off unnoticed. It is run with `bash`, so it works without its executable bit. The permission lists cannot say this (A4),
+which is why it is a hook; it lives under `.claude/` so that agents cannot change it during a step (B1). `make probe` checks it (B10),
+`selftest.sh` checks which paths it refuses, and `check-scripts.sh` checks that every merged profile has it.
+
 ### Pitfalls found by measurement
 
 These are counter-intuitive, so **read them before editing a profile.**
 The comment at the top of `scripts/claude-run.sh` keeps a short version, by ID.
 
 **These are measurements against particular versions, not Claude Code's specification.**
-**Unless a row says otherwise, every row was last checked with `make probe` on 2.1.287 (2026-10-12).**
+**Unless a row says otherwise, every row was last checked with `make probe` on 2.1.308 (2026-10-29).**
 They may change as versions move, so note `claude --version` when you install, and when it goes up run **`make probe`** (`scripts/probe.sh`).
-It re-checks the rows in throwaway repositories, with six short runs on a cheap model (about $0.25; they cannot be checked without cost),
+It re-checks the rows in throwaway repositories, with seven short runs on a cheap model (about $0.30; they cannot be checked without cost),
 and prints for each ID whether it still holds. It exits with 1 when an assumption the safety relies on (B) no longer holds,
 and with 2 when an item could not be determined (the model did not make the call as asked; re-run it).
 It does not touch your repository, but settings at the user level (`~/.claude`) still apply, as they do in the flow.
@@ -485,7 +498,7 @@ they stay whether or not the behavior that prompted them changes.
 | A1 | **Some compound forms are refused even when every part is allowed:** `VAR=value cmd` prefixes, command substitution (`$(…)`), control structures that expand a variable (`for … do cmd $i; done`), and output redirection (`>`, even inside the working directories). `&&`, `;`, pipes, heredocs, `2>&1` and `cd X && cmd` **pass** when every part is allowed (they were refused on earlier versions, and pass since at least 2.1.286). Each part is still checked (B7) | `_rules.md` "How to write shell commands"; §7 "Notes for editing prompts" | Remove the form from the list in `_rules.md`. If a form that passes is refused again, add it back: agents that keep getting denied spin |
 | A2 | With `--add-dir=<repository root>`, `cd` to the root or to a subdirectory passes, and the new current directory **persists** across calls (Claude Code also moves its "Primary working directory"; on 2.1.285 and later. In the trial recorded in #29, whose version was not noted, the current directory went back to the flow directory) | `_rules.md` "Working directory and commands" (stay in the flow directory; `cd` back after moving). Commands in `config.mk` cannot rely on a relative path once the agent has moved | If the move no longer persists, the "`cd` back" instruction can go |
 | A3 | `Write` takes the content as a JSON string: a file written with the text `\u003c` (what JSON encoders such as Go's `encoding/json` write for `<`) contains the raw `<`, and no final newline is added unless the content ends with one. **It also depends on the model**, so `make probe` reports it for reference only. `git diff --no-index -- <a> <b>` exits 0 only when two files are identical, and `git diff:*` is already allowed | `spec.md` (an AC that needs byte equality asks for a human or an allowed copy command), `review-judge.md` (compares with `git diff --no-index`), the copy wrapper in §9 (#44) | The instruction in `spec.md` can be relaxed |
-| A4 | `Write` / `Edit` **rules with a path never match, in allow or deny** (`Write(./**)`, `Write(**)`, `Write(tmp/**)` and absolute forms were all denied; `make probe` checks `Write(tmp/**)`) | Only bare `Write` / `Edit` are granted (the `//write` comments in the profiles). **Write ranges are restricted by the shell's working tree check instead** | A path restriction can be added **as an extra layer**. The working tree check stays (§10) |
+| A4 | `Write` / `Edit` **rules with a path never match, in allow or deny** (`Write(./**)`, `Write(**)`, `Write(tmp/**)` and absolute forms were all denied; `make probe` checks `Write(tmp/**)`) | Only bare `Write` / `Edit` are granted (the `//write` comments in the profiles). **Write ranges are restricted by the shell's working tree check instead**, and rewriting a tracked file by the `Write` hook (B10) | A path restriction can be added **as an extra layer**. The working tree check stays (§10) |
 | A5a | **No longer holds (2.1.286 and later).** Blocks by deny used to be missing from `permission_denials` and came back only as tool errors (until at least 2.1.243); they now appear there too | `claude-run.sh` reads `permission_denials` (§8) | Nothing to change: the warnings now include blocks by deny |
 | A5b | Even when a tool call is denied, `claude` exits with **0** | `claude-run.sh` reads `permission_denials` and prints them to stderr (§8) | The exit code could be used to notice denials, but reading `permission_denials` keeps working either way |
 | A6 | **No longer holds (2.1.287).** With the **name** `.claude/settings.json`, `permissions.allow` used to be ignored entirely when the workspace was not trusted, even when passed explicitly with `--settings` (only a warning on stderr; exit code 0). With any other file name, both allow and deny work | One of the two reasons the profiles are named `*-permissions.json` (§10) | The naming rule stays: A7 still holds, and hosts may run an older version |
@@ -511,6 +524,7 @@ they stay whether or not the behavior that prompted them changes.
 | B7 | A compound command is checked **part by part**: in `./allowed && ./not-allowed`, the second part is refused | Relaxing A1 in `_rules.md` | **Anything can run after an allowed command.** Restore the "one simple command per call" rule in `_rules.md` and treat every allow as granting everything |
 | B8 | Input redirection is checked against the `Read` denies: `./allowed < ./.env` is refused | `.env` cannot be read through an allowed command | `.env` becomes readable through any allowed command that reads its standard input |
 | B9 | Commands that Claude Code allows on its own as read-only (`tail`, `cat`, `head`, `grep`: they pass without being in `allow`, e.g. after a pipe) are checked against the `Read` denies: `tail ./.env`, `cat ./.env` and `tail ../.env` are refused | `.env` cannot be read with a command nobody allowed | `.env` becomes readable with `cat`. The rule against allowing these commands ("Allows that must never be granted" below) stays either way: an explicit allow is not probed |
+| B10 | A PreToolUse hook in the profile passed with `--settings` runs in `claude -p`, and its deny decision refuses the call. On 2.1.308 the refusal also appears in `permission_denials` and the reason reaches the agent (`make probe` reports both). The probe `Read`s the file before the `Write`, since Claude Code itself refuses a `Write` to an existing file that was not `Read` | `Write` cannot rewrite a file git tracks (`.claude/hooks/deny-overwrite.sh`, added by `merge-permissions.sh`) | Agents can rewrite whole files again, as in #58. The prompts (`_rules.md`) still forbid it, but that alone did not stop them: look for another way to block it |
 
 #### Checks `make probe` cannot do
 
@@ -665,6 +679,7 @@ prompts/
   phase-permissions.json             Permissions for spec / impl / review
   commit-permissions.json            Permissions for the PR creation phase
   pr-review-permissions.json         Permissions for code-review / pr-review
+  hooks/deny-overwrite.sh            Refuses Write to files git tracks (merge-permissions.sh adds it to every profile)
 
 docs/
   setup.md                           This guide
@@ -928,6 +943,7 @@ Things that tend to get cut because "it looks easy", and that **silently** stop 
 | **`RESIDUAL_RISK` / `CODE_REVIEW` / `DEVILS_ADVOCATE` do not affect verdicts** | If they could overturn an approval, the writers would hold back |
 | **`push` and `gh pr` are not given to the agents** | Blocking dangerous push forms by enumerating permission rules leaks |
 | **The working tree is checked after each step** | `Write` / `Edit` cannot be restricted by path, so this is the only safeguard |
+| **`Write` to a file git tracks is refused by a hook, not only by the prompts** (`.claude/hooks/deny-overwrite.sh`) | Copying a file through `Write` breaks lines nobody meant to change, and agents did it even when the instruction document forbade it by name (#58). The agents cannot restore a file themselves, so every such break stopped the flow for a human |
 | **git output paths are read with `-z`** (`worktree_paths` and `mixed_tooling` in `run-phase.sh`) | Plain `--porcelain` / `--name-only` quote paths containing non-ASCII characters or spaces as `"…"`, so they do not match `^` in `TOOLING_PATHS`. Modified tooling files and tooling mixed into project commits **pass silently** |
 | **A failing notification only warns** (`notify()` in `run-phase.sh`) | If it stopped the flow, a flaky webhook would throw away a finished implementation or review |
 | **Agents format; the shell only checks** | If the shell rewrote the diff, what the reviewer read and the actual diff would differ |

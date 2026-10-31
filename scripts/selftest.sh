@@ -16,6 +16,7 @@
 #   - notify-google-chat.sh's payload: Unicode emoji, the same **bold** conversion, and cutting a body that is too large
 #   - The Go wrappers in examples/go/.ai-flow (several modules without go.work; gofmt -l answering through its output)
 #   - The Java scratch wrapper in examples/java/.ai-flow (which build is asked for the classpath, and what java runs)
+#   - Which paths the Write hook (.claude/hooks/deny-overwrite.sh) refuses: tracked files only (#58)
 #
 # Sourcing run-phase.sh would run its body, so only the functions under test and the TOOLING_PATHS definition are extracted
 # with sed and sourced. If the way functions are written changes (name() { ... } with the } at the start of a line) and extraction
@@ -450,9 +451,10 @@ expect "notify-google-chat.sh (stops without GOOGLE_CHAT_WEBHOOK_URL)" 1 "GOOGLE
 # --- claude-run.sh keeps the notification secrets out of the agent's environment ---
 # Run it for real with the claude stub, in a throwaway host repository with the flow at ai-flow/ (flow-paths.sh needs that layout)
 AE="${WORK}/agentenv"
-mkdir -p "${AE}/ai-flow/scripts" "${AE}/ai-flow/prompts" "${AE}/ai-flow/.claude" "${AE}/.ai-flow"
+mkdir -p "${AE}/ai-flow/scripts" "${AE}/ai-flow/prompts" "${AE}/ai-flow/.claude/hooks" "${AE}/.ai-flow"
 git -C "${AE}" init -q
 for f in claude-run.sh render-prompt.sh merge-permissions.sh flow-paths.sh; do cp -p "scripts/${f}" "${AE}/ai-flow/scripts/"; done
+cp -p .claude/hooks/deny-overwrite.sh "${AE}/ai-flow/.claude/hooks/"
 echo 'rules' > "${AE}/ai-flow/prompts/_rules.md"
 echo 'prompt' > "${AE}/ai-flow/prompts/p.md"
 echo '{"permissions":{"allow":[],"deny":[]}}' > "${AE}/ai-flow/.claude/p-permissions.json"
@@ -465,6 +467,70 @@ out=$(agent_env SLACK_WEBHOOK_URL=s DISCORD_WEBHOOK_URL=d OTHER_SECRET=o KEEP_ME
 expect "claude-run.sh (NOTIFY_SECRET_VARS and SLACK_WEBHOOK_URL are removed, the rest is kept)" 0 "SEEN: KEEP_ME" "${out}" "${got}"
 out=$(agent_env SLACK_WEBHOOK_URL=s GOOGLE_CHAT_WEBHOOK_URL=g KEEP_ME=k NOTIFY_SECRET_VARS=); got=$?
 expect "claude-run.sh (SLACK_WEBHOOK_URL and GOOGLE_CHAT_WEBHOOK_URL are removed even with NOTIFY_SECRET_VARS empty)" 0 "SEEN: KEEP_ME" "${out}" "${got}"
+
+# --- The Write hook (.claude/hooks/deny-overwrite.sh, #58): which paths it refuses ---
+# Fed the hook JSON the way Claude Code would. A refusal is a deny decision on stdout; anything else must print nothing
+HK="${WORK}/hook"
+hkc() { git -C "${HK}/repo" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false "$@"; }
+mkdir -p "${HK}/repo/tmp" "${HK}/outside" "${HK}/broken"
+git -C "${HK}/repo" init -q
+mkdir -p "${HK}/repo/gone-dir/sub"
+echo 'x' > "${HK}/repo/tracked.txt"; echo 'x' > "${HK}/repo/my file.txt"; echo 'x' > "${HK}/repo/i.tsx"; echo 'x' > "${HK}/repo/gone.txt"
+echo 'x' > "${HK}/repo/gone-dir/sub/a.txt"
+echo 'x' > "${HK}/outside/a.txt"
+ln -s ../outside/a.txt "${HK}/repo/tracked-link.txt"
+hkc add tracked.txt "my file.txt" i.tsx gone.txt gone-dir tracked-link.txt; hkc commit -q -m init
+rm "${HK}/repo/gone.txt"; rm -r "${HK}/repo/gone-dir"
+echo 'x' > "${HK}/repo/untracked.txt"; echo 'x' > "${HK}/repo/tmp/scratch.md"; echo 'x' > "${HK}/repo/[id].tsx"
+ln -s ../tracked.txt "${HK}/repo/tmp/link.txt"; ln -s ../untracked.txt "${HK}/repo/tmp/link-untracked.txt"
+# Chains of untracked links: c9 takes 10 links to a tracked file; d11 takes 12 to an untracked one (refused only by the limit);
+# l1 -> l2 -> l1 is a loop
+ln -s ../tracked.txt "${HK}/repo/tmp/c0"; ln -s ../untracked.txt "${HK}/repo/tmp/d0"
+for i in 1 2 3 4 5 6 7 8 9 10 11; do ln -s "c$((i - 1))" "${HK}/repo/tmp/c${i}"; ln -s "d$((i - 1))" "${HK}/repo/tmp/d${i}"; done
+ln -s l2 "${HK}/repo/tmp/l1"; ln -s l1 "${HK}/repo/tmp/l2"
+# A repository git cannot read (a broken config stands in for dubious ownership)
+git -C "${HK}/broken" init -q; echo 'x' > "${HK}/broken/f.txt"; printf '[broken\n' >> "${HK}/broken/.git/config"
+hook() {   # hook <file_path> [cwd, "-" for none]: prints DENY, PASS or the unexpected output
+  local out
+  out=$(jq -n --arg p "$1" --arg c "${2:-${HK}/repo}" '{cwd: $c, tool_name: "Write", tool_input: {file_path: $p, content: "y"}}
+      | if .cwd == "-" then del(.cwd) else . end' \
+    | bash ./.claude/hooks/deny-overwrite.sh 2>&1)
+  if [ -z "${out}" ]; then echo PASS
+  elif [ "$(printf '%s' "${out}" | jq -r '.hookSpecificOutput.permissionDecision' 2>/dev/null)" = deny ]; then echo DENY
+  else printf '%s\n' "${out}"; fi
+}
+hook_case() {   # hook_case <name> <expected DENY|PASS> <file_path> [cwd]
+  local got
+  got=$(hook "$3" "${4:-}")
+  [ "${got}" = "$2" ]   # an exact match: an unexpected output that happens to contain DENY or PASS must not pass
+  expect "deny-overwrite.sh ($1, expected $2)" 0 "" "${got}" $?
+}
+hook_case "a tracked file" DENY "${HK}/repo/tracked.txt"
+hook_case "a tracked file with a space in its name" DENY "${HK}/repo/my file.txt"
+hook_case "a relative path resolved against cwd" DENY "tracked.txt"
+hook_case "a new file" PASS "${HK}/repo/new.txt"
+hook_case "an existing untracked file (one the agent created earlier)" PASS "${HK}/repo/untracked.txt"
+hook_case "a working file under tmp/" PASS "${HK}/repo/tmp/scratch.md"
+hook_case "a file outside any repository" PASS "${HK}/outside/a.txt"
+hook_case "a new file in a directory that does not exist" PASS "${HK}/repo/no/such/dir.txt"
+hook_case "a relative path with no cwd (cannot be resolved)" PASS "tracked.txt" -
+hook_case "a path with a newline is one path, not a path and a cwd" PASS "${HK}/repo/tracked.txt"$'\n'"x"
+hook_case "an untracked name with glob characters next to a tracked file it would match" PASS "${HK}/repo/[id].tsx"
+hook_case "an untracked symlink to a tracked file" DENY "${HK}/repo/tmp/link.txt"
+hook_case "an untracked symlink to an untracked file" PASS "${HK}/repo/tmp/link-untracked.txt"
+hook_case "a chain of 10 symlinks to a tracked file" DENY "${HK}/repo/tmp/c9"
+hook_case "a chain of more than 10 symlinks (to an untracked file)" DENY "${HK}/repo/tmp/d11"
+hook_case "a loop of symlinks" DENY "${HK}/repo/tmp/l1"
+hook_case "a tracked symlink to a file outside the repository" DENY "${HK}/repo/tracked-link.txt"
+hook_case "a tracked file missing from the working tree" DENY "${HK}/repo/gone.txt"
+hook_case "a tracked file whose whole directory is missing" DENY "${HK}/repo/gone-dir/sub/a.txt"
+hook_case "a new file in a missing directory next to that one" PASS "${HK}/repo/gone-dir/sub/new.txt"
+hook_case "a file in a repository git cannot read" DENY "${HK}/broken/f.txt"
+# On a file system that ignores case (git sets core.ignorecase when it creates the repository), another case is the same file
+if [ "$(git -C "${HK}/repo" config --bool core.ignorecase)" = true ]; then
+  hook_case "a tracked file named in another case" DENY "${HK}/repo/TRACKED.txt"
+fi
+[ -n "$(git -C "${HK}/repo" status --porcelain -- tracked.txt)" ] && ng "deny-overwrite.sh changed the file it was asked about."
 
 # --- require_no_mixed_tooling (impl / review stop on tooling commits before anything is charged) ---
 # run_step is stubbed to print CHARGED, so a case that gets past the entry checks shows it. The instruction check is the real one (gh stub).
@@ -734,6 +800,6 @@ else
 fi
 
 if [ "${status}" -eq 0 ]; then
-  echo "selftest: all ${pass} regression tests for run-phase.sh / render-prompt.sh / claude-run.sh / notify-slack.sh / notify-google-chat.sh / resign-subtree-merge.sh / the example wrappers passed."
+  echo "selftest: all ${pass} regression tests for run-phase.sh / render-prompt.sh / claude-run.sh / notify-slack.sh / notify-google-chat.sh / resign-subtree-merge.sh / deny-overwrite.sh / the example wrappers passed."
 fi
 exit "${status}"

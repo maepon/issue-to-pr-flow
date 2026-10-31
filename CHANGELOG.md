@@ -8,6 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Agents can no longer rewrite a file git tracks with `Write`** ([#58](https://github.com/maepon/issue-to-pr-flow/issues/58)).
+  `merge-permissions.sh` adds a PreToolUse hook (`.claude/hooks/deny-overwrite.sh`) to every profile; it refuses `Write` to a tracked file
+  and tells the agent to use `Edit`. New files, `tmp/` and files the agent created earlier pass as before. In a host repository an agent
+  rewrote a ~1100-line test file twice: once it hit the output limit and left three lines, once escapes came back as raw characters and
+  the agent weakened existing tests to get them to pass, even though the instruction document forbade rewriting that file by name.
+  `_rules.md` now states the rule (and to re-`Read` and retry with a shorter `old_string` when an `Edit` does not match).
+  `make probe` checks the hook with a new run (B10; seven runs, about $0.30), `selftest.sh` checks which paths it refuses,
+  and `make check` fails if a merged profile lacks it. Nothing to change in your `.ai-flow/`.
+  The hook checks every link of a symlink chain and its target (more than 10 links is refused), refuses to recreate a tracked file
+  missing from the working tree (even when its whole directory is gone), checks a name in another case as the tracked file on a file system that ignores case,
+  and takes `[ ] * ?` in a name literally. A git error inside a repository refuses the call instead of switching the hook off.
+  It is run with `bash`, so a copy without the executable bit works
+- `implement.md` and `review-fix.md` tell the agents not to weaken an existing test to make it pass (`or True`, deleting assertions,
+  changing the input so the case disappears, skipping)
+- `spec.md` and `plan-judge.md` know that tracked files cannot be rewritten with `Write`: an instruction document must not ask the agents
+  to replace a tracked file as a whole, but say who does it (a human, or an allowed command), and plan-judge sends one that does not to a human
+
 ## [0.12.0] - 2026-10-12
 
 ### Added

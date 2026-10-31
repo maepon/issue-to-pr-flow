@@ -71,7 +71,11 @@ Include the following.
     final newline is easily lost. For a copy that must match byte for byte (real output kept as a fixture, for example), write one of these
     - The copy is made by a human (`cp`) before `make impl`, or by a copy command the project allows in `.ai-flow/permissions.json`
       (name the exact command and check that it is allowed). Then the AC can require byte equality
-    - The agents write it with `Write`, and the AC compares contents, not bytes (for JSON, the parsed values are equal)
+    - The agents write it with `Write` as a new file, and the AC compares contents, not bytes (for JSON, the parsed values are equal)
+  - **Do not ask the agents to replace a file git tracks as a whole** (regenerating a fixture or a generated file, rewriting a file from
+    scratch). A hook refuses `Write` to tracked files, so the agents can change them only piece by piece with `Edit`. If a tracked file must be
+    replaced, say who does it: a human before `make impl`, or a command the project allows in `.ai-flow/permissions.json`
+    (name the exact command and check that it is allowed). Otherwise, describe the change as edits to the existing file
   - **Before writing the instruction document, check that the criteria can be met given the existing repository.** For formatting
     and test ACs, run them once on the current {{BASE_BRANCH}} and see that they pass. If they fail because of existing files,
     they become incompatible with ACs about the changed scope (an unformatted existing file once made two ACs impossible to satisfy together)
